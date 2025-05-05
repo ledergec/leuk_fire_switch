@@ -5,14 +5,7 @@ editor_options:
   chunk_output_type: console
 ---
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
-
+Load the necessary libraries:
 ```{r}
 library(tibble)
 library(readr)
@@ -557,7 +550,6 @@ assertthat::are_equal(nrow(data[data$year == 2007 & is.na(data$a1),]),0)
 Add bodentiefe and asche information to the data
 ```{r}
 plot_info_2004 <- read_csv("../Daten/Leuk/plot_information_2004.csv")
-View(plot_info_2004)
 data <- left_join(data, plot_info_2004[,c("plotnr", "distancewald_korr", "aschemittel04", "aschemedian04", "bodentiefemittel04", "bodentiefemedian04")], join_by(plot_no == plotnr))
 ```
 
