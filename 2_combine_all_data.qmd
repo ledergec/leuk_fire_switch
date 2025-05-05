@@ -1,0 +1,692 @@
+---
+title: "sampling_design_assessement"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+library(tibble)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(stringr)
+```
+
+Add the global id to the data and clean out mosses:
+```{r}
+x_min <- 2614000.0000
+x_max <- 2618000.0000
+y_min <- 1129000.0000
+y_max <- 1133000.0000
+
+
+data <- read_delim("../Daten/Leuk/Erste Daten von Tom/data_2004_2023_main.csv")
+# During the cleanup of the 2013 data an error must have occurred replacing Rosa rubiginosa aggr. with Alopecurus spec. we fix this here
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Alopecurus spec."] <- "Rosa rubiginosa aggr."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Nigritelle rhellicani"] <- "Nigritella rhellicani"
+
+# Add global_id to data
+data$plotid <- (data$coordX + 2000000 - x_min)/125 + (y_max - (data$coordY + 1000000))/125*33 + 1
+names(data)[1] <- "global_id"
+s <- data[data$year == 2023,]$`Species_unified_2004-23`
+s <- unique(s[order(s)])
+
+# Remove mosses from data
+mosses <- read_csv("../Daten/Leuk/Hand Curated/moss_taxa.csv")
+data <- data[!(data$`Species_unified_2004-23` %in% mosses$moss_taxa),]
+```
+
+Function which allows generating an automatic matching:
+```{r}
+create_automatic_matching <- function(data, nesting, year) {
+  short_names_to_long_names <- data.frame(plotno = data$plot_no[data$year == year], short_name = data$`Species_unified_2004-23`[data$year == year])
+  short_names_to_long_names$long_name <- NA
+  plot_numbers <- unique(short_names_to_long_names$plotno)
+  
+  # if the short name is a prefix of one of the long names use the corresponding long name
+  for(i in seq(1, length(short_names_to_long_names$short_name))) {
+    plotno <- short_names_to_long_names$plotno[i]
+    short_name <- short_names_to_long_names$short_name[i]
+    
+    unique_long_names_on_plot <- unique(nesting$taxon[nesting$plot_no == plotno])
+    number_of_matches <- sum(startsWith(unique_long_names_on_plot, short_name))
+    
+    if(number_of_matches == 1) {
+      index <- which(startsWith(unique_long_names_on_plot, short_name))
+      short_names_to_long_names$long_name[i] <- unique_long_names_on_plot[index]
+    } else if(number_of_matches > 1) {
+      message(paste(plotno, " ", short_name))
+    }
+  }
+  
+  # Of the unmatched short names try removing aggr. and then match is as prefix to one of the unused long names
+  for(i in seq(1, length(plot_numbers))) {
+    plotno <-  plot_numbers[i]
+  
+    unmatched_short_names <- short_names_to_long_names$short_name[short_names_to_long_names$plotno == plotno & is.na(short_names_to_long_names$long_name)]
+  
+    unique_used_long_names <- unique(short_names_to_long_names$long_name[short_names_to_long_names$plotno == plotno & !is.na(short_names_to_long_names$long_name)])
+    unique_available_long_names <- unique(nesting$taxon[nesting$plot_no == plotno])
+    unique_unused_long_names <- unique_available_long_names[!(unique_available_long_names %in% unique_used_long_names)]
+    
+    for(short_name in unmatched_short_names) {
+      if(endsWith(short_name, " aggr.")) {
+        short_name_without_aggr <- gsub(" aggr.", "", short_name, fixed = T)
+        matches <- startsWith(unique_unused_long_names, short_name_without_aggr)
+        if(sum(matches) == 1) {
+          short_names_to_long_names$long_name[short_names_to_long_names$plotno == plotno & short_names_to_long_names$short_name == short_name] <- unique_unused_long_names[which(matches)]
+        } else {
+          message(paste(short_name, "Matches:", unique_unused_long_names[matches], collapse = " "))
+        }
+      }
+    }
+  }
+  
+  # Of the unmatched short names try matching by genus
+  for(i in seq(1, length(plot_numbers))) {
+    plotno <-  plot_numbers[i]
+  
+    unmatched_short_names <- short_names_to_long_names$short_name[short_names_to_long_names$plotno == plotno & is.na(short_names_to_long_names$long_name)]
+  
+    unique_used_long_names <- unique(short_names_to_long_names$long_name[short_names_to_long_names$plotno == plotno & !is.na(short_names_to_long_names$long_name)])
+    unique_available_long_names <- unique(nesting$taxon[nesting$plot_no == plotno])
+    unique_unused_long_names <- unique_available_long_names[!(unique_available_long_names %in% unique_used_long_names)]
+    
+    for(short_name in unmatched_short_names) {
+      genus <- unlist(strsplit(short_name, " "))[1]
+      number_of_matches <- sum(startsWith(unique_unused_long_names, genus))
+    
+      if(number_of_matches == 1) {
+        index <- which(startsWith(unique_unused_long_names, genus))
+        short_names_to_long_names$long_name[short_names_to_long_names$plotno == plotno & short_names_to_long_names$short_name == short_name] <- unique_unused_long_names[index]
+      } else if(number_of_matches > 1) {
+        message(paste(plotno, " ", short_name))
+      }
+  
+    }
+  }
+  short_names_to_long_names
+}
+
+set_name_in_plot <- function(short_names_to_long_names, plotno, short_name, long_name) {
+  short_names_to_long_names$long_name[short_names_to_long_names$plotno == plotno & short_names_to_long_names$short_name == short_name] <- long_name
+  short_names_to_long_names
+}
+
+set_names_in_plot <- function(short_names_to_long_names, plotno, short_name, long_names) {
+  short_names_to_long_names$long_name[short_names_to_long_names$plotno == plotno & short_names_to_long_names$short_name == short_name] <- long_names
+  short_names_to_long_names
+}
+
+find_missing_matches <- function(nesting, short_names_to_long_names) {
+    plot_numbers <- unique(short_names_to_long_names$plotno[is.na(short_names_to_long_names$long_name)])
+  for(i in seq(1, min(length(plot_numbers), 1))) {
+    plotno <-  plot_numbers[i]
+    message()
+    message(paste("Plot no:", plotno))
+    message(paste("================="))
+    
+    message()
+    message("Plants with missing matches:")
+    unmatched_short_names <- short_names_to_long_names$short_name[short_names_to_long_names$plotno == plotno & is.na(short_names_to_long_names$long_name)]
+    unmatched_short_names <- unmatched_short_names[order(unmatched_short_names)]
+    message(paste(unmatched_short_names, collapse = "\n"))
+    
+    unique_used_long_names <- unique(short_names_to_long_names$long_name[short_names_to_long_names$plotno == plotno & !is.na(short_names_to_long_names$long_name)])
+    unique_available_long_names <- unique(nesting$taxon[nesting$plot_no == plotno])
+    unique_unused_long_names <- unique_available_long_names[!(unique_available_long_names %in% unique_used_long_names)]
+    unique_unused_long_names <- unique_unused_long_names[order(unique_unused_long_names)]
+  
+    message()
+    message("Names which could be possible:")
+    message(paste(unique_unused_long_names, collapse = "\n"))
+  }
+
+}
+
+match_nesting_to_data <- function(data, nesting, short_names_to_long_names, year){
+  plot_numbers <- unique(data$plot_no[data$year == year])
+
+  for(i in seq(1, length(plot_numbers))) {
+    message(paste("i: ", i, "\n"))
+    data_subset <- data[data$year == year & data$plot_no == plot_numbers[i],]
+    nesting_subset <- nesting[nesting$plot_no == plot_numbers[i],]
+    
+    for(j in seq(1, length(data_subset$`Species_unified_2004-23`))) {
+      # message(paste("j: ", j, " ", data_subset$`Species_unified_2004-23`[j], "\n"))
+      matchings <- short_names_to_long_names[short_names_to_long_names$plotno == plot_numbers[i] & short_names_to_long_names$short_name == data_subset$`Species_unified_2004-23`[j],]
+      intermediate_result <- data.frame(a1 = numeric(), a10 = numeric(), b1 = numeric(), b10 = numeric(), c1 = numeric(), c10 = numeric(), d1 = numeric(), d10 = numeric(), check.names=FALSE)
+      
+      if(length(matchings$long_name) == 0) {
+        intermediate_result <- add_row(intermediate_result, a1 = NA, a10 = NA, b1 = NA, b10 = NA, c1 = NA, c10 = NA, d1 = NA, d10 = NA)
+      } else {
+        for(k in seq(1, length(matchings$long_name))) {
+          # message(paste("k: ", k, "\n"))
+          intermediate_result <- add_row(intermediate_result, nesting_subset[nesting_subset$taxon == matchings$long_name[k],c("a1", "a10", "b1", "b10", "c1", "c10", "d1", "d10")])
+        }
+      }
+      
+      data[data$year == year & data$plot_no == plot_numbers[i] & data$`Species_unified_2004-23` == data_subset$`Species_unified_2004-23`[j] & data$layer == data_subset$layer[j], c("a1",   "a10", "b1", "b10", "c1", "c10", "d1", "d10")] <- as.list(as.numeric(colSums(intermediate_result) > 0))
+    }
+  }
+  data
+}
+```
+
+Match the data with the nesting information from 2013_nesting.csv:
+```{r}
+nesting_2013 <- read_delim("../Daten/Leuk/Daten 2013/2013_nesting.csv")
+names(nesting_2013)[1] <- "plot_no"
+names(nesting_2013)[2] <- "taxon"
+names(nesting_2013)[3] <- "layer"
+
+# Adapt sp. to spec.
+nesting_2013$taxon <- str_replace_all(nesting_2013$taxon, " sp\\.", " spec.")
+# Fix spelling issue
+nesting_2013$taxon[nesting_2013$taxon == "Rubus fruticosus aggr. auct. helv."] <- "Rubus fruticosus aggr. Auct. Helv."
+# Trim white spaces
+nesting_2013$taxon <- trimws(nesting_2013$taxon)
+
+# Remove all mosses
+nesting_2013 <- nesting_2013[!(nesting_2013$taxon %in% mosses$moss_taxa),]
+
+# replace na with 0 in nesting columns
+nesting_2013$layer[is.na(nesting_2013$layer)] <- 3
+nesting_2013$a1[is.na(nesting_2013$a1)] <- 0
+nesting_2013$a10[is.na(nesting_2013$a10)] <- 0
+nesting_2013$b1[is.na(nesting_2013$b1)] <- 0
+nesting_2013$b10[is.na(nesting_2013$b10)] <- 0
+nesting_2013$c1[is.na(nesting_2013$c1)] <- 0
+nesting_2013$c10[is.na(nesting_2013$c10)] <- 0
+nesting_2013$d1[is.na(nesting_2013$d1)] <- 0
+nesting_2013$d10[is.na(nesting_2013$d10)] <- 0
+nesting_2013$`200`[is.na(nesting_2013$`200`)] <- 0
+
+# Remove species which are not present according to the nesting data
+nesting_2013 <- nesting_2013[nesting_2013$a1 + nesting_2013$a10 + nesting_2013$b1 + nesting_2013$b10 + nesting_2013$c1 + nesting_2013$c10 + nesting_2013$d1 + nesting_2013$d10 + nesting_2013$`200` > 0,]
+
+# Basic verification of the number of observations in both data sets which should be matched. They are not the same...
+length(data$global_id[data$year == 2013])
+length(nesting_2013$taxon)
+
+# Add columns necessary for nesting
+data$a1 <- NA
+data$a10 <- NA
+data$b1 <- NA
+data$b10 <- NA
+data$c1 <- NA
+data$c10 <- NA
+data$d1 <- NA
+data$d10 <- NA
+
+# Check the average species richness across the different years and datasets and all layers
+data |> group_by(year, global_id) |> summarise(n = length(unique(`Species_unified_2004-23`))) |> group_by(year) |> summarise(m = mean(n))
+mean((nesting_2013 |> group_by(plot_no) |> summarise(n = length(unique(taxon))))$n)
+```
+
+Create a matching of names from the long names in the nesting data to the short names in the cleaned up data for 2013
+```{r}
+short_names_to_long_names <- create_automatic_matching(data, nesting_2013, 2013)
+
+find_missing_matches(nesting_2013, short_names_to_long_names)
+
+
+short_names_to_long_names$long_name[short_names_to_long_names$short_name == "Elymus caninus"] <- "Agropyron caninum (L.) P. Beauv."
+short_names_to_long_names$long_name[short_names_to_long_names$short_name == "Elymus hispidus"] <- "Agropyron intermedium (Host) P. Beauv."
+short_names_to_long_names$long_name[short_names_to_long_names$short_name == "Tripleurospermum inodorum"] <- "Trisetum distichophyllum (Vill.) P. Beauv."
+
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 14, "Securigera varia", "Coronilla varia L.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 157, "Galium mollugo aggr.", "Galium album Mill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 157, "Galium pumilum aggr.", "Galium anisophyllon Vill.")
+```
+
+Match the data from the nesting file to the correct lines in the cleaned up data for 2013
+```{r}
+data <- match_nesting_to_data(data, nesting_2013, short_names_to_long_names, 2013)
+
+# Look at the data which has been matched
+data[data$year == 2013,]
+
+# We check that for all rows the corresponding nesting has been found
+assertthat::are_equal(nrow(data[data$year == 2013 & is.na(data$a1),]),0)
+```
+
+
+Match the data with the nesting information from 2023_nesting.csv:
+```{r}
+nesting_2023 <- read_delim("../Daten/Leuk/Daten 2023/2023_nesting.csv")
+names(nesting_2023)[1] <- "plot_no"
+names(nesting_2023)[2] <- "taxon"
+nsubstrs <- unlist(lapply(nesting_2023$taxon, function(x){length(unlist(strsplit(x, " ")))}))
+
+# Add spec. to all genus, but not family names
+nesting_2023$taxon[nsubstrs == 1 & !endsWith(nesting_2023$taxon, "eae")] <- 
+  unlist(lapply(nesting_2023$taxon[nsubstrs == 1 & !endsWith(nesting_2023$taxon, "eae")], function(x) paste(x, "spec.", " ")))
+nesting_2023$taxon <-  trimws(nesting_2023$taxon)
+
+# Check that only one corner has been recorded for all plots...
+assertthat::are_equal(all((nesting_2023 |> group_by(plot_no) |> summarise(correct = 2 == (length(unique(`Corner(1m2)`)))))$correct), TRUE)
+assertthat::are_equal(all((nesting_2023 |> group_by(plot_no) |> summarise(correct = 2 == (length(unique(`Corner(10m2)`)))))$correct), TRUE)
+
+nesting_2023$a1 <- as.integer(!is.na(nesting_2023$`Corner(1m2)`))
+nesting_2023$a10 <- as.integer(!is.na(nesting_2023$`Corner(10m2)`))
+nesting_2023$a10 <- as.integer(nesting_2023$a1 == 1 | nesting_2023$a10 == 1)
+
+nesting_2023$b1 <- NA
+nesting_2023$b10 <- NA
+nesting_2023$c1 <- NA
+nesting_2023$c10 <- NA
+nesting_2023$d1 <- NA
+nesting_2023$d10 <- NA
+nesting_2023$`200` <- nesting_2023$`cover (200m2)`
+nesting_2023$`200`[nesting_2023$`200` == 0] <- 0.1
+
+# Basic verification of the number of observations in both data sets which should be matched. They are not the same...
+length(data$global_id[data$year == 2023])
+length(nesting_2023$taxon)
+
+# Remove unused columns
+nesting_2023 <- nesting_2023[,c("plot_no", "taxon", "layer", "a1", "a10", "b1", "b10", "c1", "c10", "d1", "d10")]
+nesting_2023$year <- 2023
+
+# Check the average species richness across the different years and datasets and all layers
+data |> group_by(year, global_id) |> summarise(n = length(unique(`Species_unified_2004-23`))) |> group_by(year) |> summarise(m = mean(n))
+mean((nesting_2023 |> group_by(plot_no) |> summarise(n = length(unique(taxon))))$n)
+```
+
+
+Create a matching of names from the long names in the nesting data to the short names in the cleaned up data for 2023
+```{r}
+short_names_to_long_names <- create_automatic_matching(data, nesting_2023, 2023)
+
+find_missing_matches(nesting_2023, short_names_to_long_names)
+```
+
+Match the data from the nesting file to the correct lines in the cleaned up data for 2013
+```{r}
+data <- match_nesting_to_data(data, nesting_2023, short_names_to_long_names, 2023)
+
+# Look at the data which has been matched
+data[data$year == 2023,]
+
+# We check that for all rows the corresponding nesting has been found
+assertthat::are_equal(nrow(data[data$year == 2023 & is.na(data$a1),]),0)
+```
+
+
+
+```{r}
+vegetation <- read_csv("../Daten/Leuk/Daten Access DB/Vegetation.csv")
+sum(is.na(vegetation$no_ISFS))
+
+plotid <- read_csv("../Daten/Leuk/Daten Access DB/plotid.csv")
+vegetation <- left_join(vegetation, plotid, join_by(plotid == plotid))
+
+cover <- read_csv("../Daten/Leuk/Daten Access DB/Deckungscode.csv")
+vegetation <- left_join(vegetation, cover, join_by(cover == londo))
+
+species <- read_csv("../Daten/Leuk/Daten Access DB/Species.csv")
+vegetation <- left_join(vegetation, species, join_by(no_ISFS == No_ISFS))
+
+vegetation$ecke[is.na(vegetation$ecke)] <- "200"
+
+nesting_2004_2007 <- data.frame(year = numeric(), plot_no = numeric(), taxon = character(), layer = numeric(), a1 = numeric(), a10 = numeric(), b1 = numeric(), b10 = numeric(), c1 = numeric(), c10 = numeric(), d1 = numeric(), d10 = numeric(), check.names = F)
+
+
+for(year in unique(vegetation$jahr)) {
+  for(plot_no in unique(vegetation$plotnr[vegetation$jahr == year])) {
+    for(layer in unique(vegetation$layer[vegetation$jahr == year & vegetation$plotnr == plot_no])) {
+      for(taxon in unique(vegetation$Species[vegetation$jahr == year & vegetation$plotnr == plot_no & vegetation$layer == layer])) {
+        selection <- vegetation[vegetation$jahr == year & vegetation$plotnr == plot_no & vegetation$layer == layer & vegetation$Species == taxon,]
+        a1 <- sum(selection$ecke == "a" & selection$plotgroesse == 1)
+        a10 <- sum(selection$ecke == "a" & selection$plotgroesse == 10)
+        b1 <- sum(selection$ecke == "b" & selection$plotgroesse == 1)
+        b10 <- sum(selection$ecke == "b" & selection$plotgroesse == 10)
+        c1 <- sum(selection$ecke == "c" & selection$plotgroesse == 1)
+        c10 <- sum(selection$ecke == "c" & selection$plotgroesse == 10)
+        d1 <- sum(selection$ecke == "d" & selection$plotgroesse == 1)
+        d10 <- sum(selection$ecke == "d" & selection$plotgroesse == 10)
+
+        nesting_2004_2007 <- add_row(nesting_2004_2007, year = year, plot_no = plot_no, taxon = taxon, layer = layer, a1 = a1, a10 = a10, b1 = b1, b10 = b10, c1 = c1, c10 = c10, d1 = d1, d10 = d10)
+      }
+    }
+  }
+}
+```
+
+Create a matching of names from the long names in the nesting data to the short names in the cleaned up data for 2004
+```{r}
+short_names_to_long_names <- create_automatic_matching(data, nesting_2004_2007[nesting_2004_2007$year == 2004, -1], 2004)
+
+short_names_to_long_names$long_name[short_names_to_long_names$short_name == "Elymus repens"] <- "Agropyron repens (L.) P. Beauv."
+short_names_to_long_names$long_name[short_names_to_long_names$short_name == "Polemonium caeruleum"] <- "Poa trivialis L. s.l."
+
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 42, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 47, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 51, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 58, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 89, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 96, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 158, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 184, "Elymus caninus", "Agropyron caninum (L.) P. Beauv.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 184, "Galium mollugo aggr.", "Galium album Mill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 184, "Galium pumilum aggr.", "Galium anisophyllon Vill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 213, "Ranunculus montanus aggr.", "Ranunculus villarsii DC.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 213, "Ranunculus tuberosus aggr.", "Ranunculus nemorosus aggr.")
+
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 158, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+nesting_2004_2007[nesting_2004_2007$year == 2004 & nesting_2004_2007$plot_no == 233,]
+short_names_to_long_names[short_names_to_long_names$plotno == 233,]
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 233, "Juniperus communis", c("Juniperus communis subsp. nana Syme", "Juniperus communis L. s.str.", "Juniperus communis subsp. nana Syme"))
+
+find_missing_matches(nesting_2004_2007[nesting_2004_2007$year == 2004, -1], short_names_to_long_names)
+```
+
+Match the data from the nesting file to the correct lines in the cleaned up data for 2004
+```{r}
+data <- match_nesting_to_data(data, nesting_2004_2007[nesting_2004_2007$year == 2004, -1], short_names_to_long_names, 2004)
+
+# Look at the data which has been matched
+data[data$year == 2004,]
+
+# We check that for all rows the corresponding nesting has been found
+assertthat::are_equal(nrow(data[data$year == 2004 & is.na(data$a1),]),0)
+```
+
+
+Create a matching of names from the long names in the nesting data to the short names in the cleaned up data for 2005
+```{r}
+short_names_to_long_names <- create_automatic_matching(data, nesting_2004_2007[nesting_2004_2007$year == 2005, -1], 2005)
+
+short_names_to_long_names$long_name[short_names_to_long_names$short_name == "Elymus caninus"] <- "Agropyron caninum (L.) P. Beauv."
+short_names_to_long_names$long_name[short_names_to_long_names$short_name == "Elymus repens"] <- "Agropyron repens (L.) P. Beauv."
+short_names_to_long_names$long_name[short_names_to_long_names$short_name == "Polemonium caeruleum"] <- "Poa trivialis L. s.l."
+
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 14, "Amaranthus spec.", "Amaranthus sp.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 14, "Amaranthus hypochondriacus", "Amaranthus cruentus L.")
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 42, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 49, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 58, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 84, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 89, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 111, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 135, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 136, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 136, "Galium mollugo aggr.", "Galium album Mill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 136, "Galium pumilum aggr.", "Galium anisophyllon Vill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 141, "Galium mollugo aggr.", "Galium album Mill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 141, "Galium pumilum aggr.", "Galium anisophyllon Vill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 143, "Galium mollugo aggr.", "Galium album Mill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 143, "Galium pumilum aggr.", "Galium anisophyllon Vill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 172, "Carex muricata aggr.", "Carex pairae F. W. Schultz")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 172, "Carex spec.", "Carex sp.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 184, "Galium mollugo aggr.", "Galium album Mill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 184, "Galium pumilum aggr.", "Galium anisophyllon Vill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 187, "Galium mollugo aggr.", "Galium album Mill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 187, "Galium pumilum aggr.", "Galium anisophyllon Vill.")
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 195, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 210, "Galium mollugo aggr.", "Galium album Mill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 210, "Galium pumilum aggr.", "Galium anisophyllon Vill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 213, "Ranunculus montanus aggr.", "Ranunculus villarsii DC.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 213, "Ranunculus tuberosus aggr.", "Ranunculus nemorosus aggr.")
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 234, "Epipactis spec.", c("Epipactis atrorubens Besser", "Epipactis helleborine aggr."))
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 235, "Ranunculus spec.", "Ranunculus sp.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 235, "Ranunculus tuberosus aggr.", "Ranunculus nemorosus aggr.")
+
+
+find_missing_matches(nesting_2004_2007[nesting_2004_2007$year == 2005, -1], short_names_to_long_names)
+```
+
+Match the data from the nesting file to the correct lines in the cleaned up data for 2005
+```{r}
+data <- match_nesting_to_data(data, nesting_2004_2007[nesting_2004_2007$year == 2005, -1], short_names_to_long_names, 2005)
+
+# Look at the data which has been matched
+data[data$year == 2005,]
+
+# We check that for all rows the corresponding nesting has been found
+assertthat::are_equal(nrow(data[data$year == 2005 & is.na(data$a1),]),0)
+```
+
+
+
+
+Create a matching of names from the long names in the nesting data to the short names in the cleaned up data for 2006
+```{r}
+short_names_to_long_names <- create_automatic_matching(data, nesting_2004_2007[nesting_2004_2007$year == 2006, -1], 2006)
+
+short_names_to_long_names$long_name[short_names_to_long_names$short_name == "Elymus caninus"] <- "Agropyron caninum (L.) P. Beauv."
+short_names_to_long_names$long_name[short_names_to_long_names$short_name == "Elymus repens"] <- "Agropyron repens (L.) P. Beauv."
+short_names_to_long_names$long_name[short_names_to_long_names$short_name == "Elymus hispidus"] <- "Agropyron intermedium (Host) P. Beauv."
+short_names_to_long_names$long_name[short_names_to_long_names$short_name == "Polemonium caeruleum"] <- "Poa trivialis L. s.l."
+
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 12, "Quercus pubescens", c("Quercus cerris L.", "Quercus sp."))
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 15, "Quercus pubescens", c("Quercus cerris L.", "Quercus sp.", "Quercus cerris L."))
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 60, "Ononis spec.", "Ononis sp.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 60, "Ononis spinosa aggr.", "Ononis repens L.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 184, "Galium mollugo aggr.", "Galium album Mill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 184, "Galium pumilum aggr.", "Galium anisophyllon Vill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 187, "Galium mollugo aggr.", "Galium album Mill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 187, "Galium pumilum aggr.", "Galium anisophyllon Vill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 197, "Ranunculus spec.", "Ranunculus sp.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 197, "Ranunculus tuberosus aggr.", "Ranunculus nemorosus aggr.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 209, "Potentilla spec.", "Potentilla sp.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 209, "Potentilla verna", "Potentilla neumanniana Rchb.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 210, "Galium mollugo aggr.", "Galium album Mill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 210, "Galium pumilum aggr.", "Galium anisophyllon Vill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 211, "Ranunculus spec.", "Ranunculus sp.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 211, "Ranunculus tuberosus aggr.", "Ranunculus nemorosus aggr.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 213, "Ranunculus montanus aggr.", "Ranunculus villarsii DC.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 213, "Ranunculus tuberosus aggr.", "Ranunculus nemorosus aggr.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 233, "Ranunculus spec.", "Ranunculus sp.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 233, "Ranunculus tuberosus aggr.", "Ranunculus nemorosus aggr.")
+
+
+find_missing_matches(nesting_2004_2007[nesting_2004_2007$year == 2006, -1], short_names_to_long_names)
+```
+
+Match the data from the nesting file to the correct lines in the cleaned up data for 2006
+```{r}
+data <- match_nesting_to_data(data, nesting_2004_2007[nesting_2004_2007$year == 2006, -1], short_names_to_long_names, 2006)
+
+# Look at the data which has been matched
+data[data$year == 2006,]
+
+# We check that for all rows the corresponding nesting has been found
+assertthat::are_equal(nrow(data[data$year == 2006 & is.na(data$a1),]),0)
+```
+
+
+
+Create a matching of names from the long names in the nesting data to the short names in the cleaned up data for 2007
+```{r}
+short_names_to_long_names <- create_automatic_matching(data, nesting_2004_2007[nesting_2004_2007$year == 2007, -1], 2007)
+
+short_names_to_long_names$long_name[short_names_to_long_names$short_name == "Polemonium caeruleum"] <- "Poa trivialis L. s.l."
+short_names_to_long_names$long_name[short_names_to_long_names$short_name == "Elymus repens"] <- "Agropyron repens (L.) P. Beauv."
+short_names_to_long_names$long_name[short_names_to_long_names$short_name == "Elymus caninus"] <- "Agropyron caninum (L.) P. Beauv."
+short_names_to_long_names$long_name[short_names_to_long_names$short_name == "Elymus hispidus"] <- "Agropyron intermedium (Host) P. Beauv."
+
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 12, "Quercus pubescens", c("Quercus cerris L.", "Quercus sp."))
+short_names_to_long_names <- set_names_in_plot(short_names_to_long_names, 15, "Quercus pubescens", c("Quercus cerris L.", "Quercus sp.", "Quercus cerris L."))
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 96, "Salix appendiculata / caprea", "Salix appendiculata Vill. / Salix caprea L.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 96, "Salix spec.", "Salix sp.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 184, "Galium mollugo aggr.", "Galium album Mill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 184, "Galium pumilum aggr.", "Galium anisophyllon Vill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 187, "Galium mollugo aggr.", "Galium album Mill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 187, "Galium pumilum aggr.", "Galium anisophyllon Vill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 197, "Galium mollugo aggr.", "Galium album Mill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 197, "Galium spec.", "Galium sp.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 210, "Galium mollugo aggr.", "Galium album Mill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 210, "Galium pumilum aggr.", "Galium anisophyllon Vill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 212, "Salix appendiculata / caprea", "Salix appendiculata Vill. / Salix caprea L.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 212, "Salix spec.", "Salix sp.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 213, "Galium mollugo aggr.", "Galium album Mill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 213, "Galium pumilum aggr.", "Galium anisophyllon Vill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 213, "Ranunculus tuberosus aggr.", "Ranunculus nemorosus aggr.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 213, "Ranunculus montanus aggr.", "Ranunculus villarsii DC.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 233, "Ranunculus tuberosus aggr.", "Ranunculus nemorosus aggr.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 233, "Ranunculus spec.", "Ranunculus sp.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 242, "Galium mollugo aggr.", "Galium album Mill.")
+short_names_to_long_names <- set_name_in_plot(short_names_to_long_names, 242, "Galium pumilum aggr.", "Galium anisophyllon Vill.")
+
+find_missing_matches(nesting_2004_2007[nesting_2004_2007$year == 2007, -1], short_names_to_long_names)
+```
+
+Match the data from the nesting file to the correct lines in the cleaned up data for 2007
+```{r}
+data <- match_nesting_to_data(data, nesting_2004_2007[nesting_2004_2007$year == 2007, -1], short_names_to_long_names, 2007)
+
+# Look at the data which has been matched
+data[data$year == 2007,]
+
+# We check that for all rows the corresponding nesting has been found
+assertthat::are_equal(nrow(data[data$year == 2007 & is.na(data$a1),]),0)
+```
+
+Add bodentiefe and asche information to the data
+```{r}
+plot_info_2004 <- read_csv("../Daten/Leuk/plot_information_2004.csv")
+View(plot_info_2004)
+data <- left_join(data, plot_info_2004[,c("plotnr", "distancewald_korr", "aschemittel04", "aschemedian04", "bodentiefemittel04", "bodentiefemedian04")], join_by(plot_no == plotnr))
+```
+
+Fix layer to be only 1,2,3
+```{r}
+data$layer[data$layer == 12] <- 2
+```
+
+Remove unused columns and rename columns
+```{r}
+data <- data[,c("global_id", "plot_no", "year", "coordX", "coordY", "elevation_m", "Species_unified_2004-23", "layer", "percentage200", "a1", "a10", "b1", "b10", "c1", "c10", "d1", "d10", "distancewald_korr", "aschemittel04", "aschemedian04", "bodentiefemittel04", "bodentiefemedian04")]
+
+names(data)
+```
+
+Add climax data
+```{r}
+climax_data <- read_csv("../Daten/Intermediate/cleaned_climax_data.csv")
+data <- rbind(data, climax_data)
+```
+
+Rename columns with weird naming
+```{r}
+names(data)[names(data) == "distancewald_korr"] = c("distance_forest")
+names(data)[names(data) == "aschemittel04"] = c("mean_asches_depth")
+names(data)[names(data) == "aschemedian04"] = c("median_asches_depth")
+names(data)[names(data) == "bodentiefemittel04"] = c("mean_soil_depth")
+names(data)[names(data) == "bodentiefemedian04"] = c("median_soil_depth")
+```
+
+Compute average species richness per year
+```{r}
+data_without_spec <- data[!endsWith(data$`Species_unified_2004-23`, "spec."),]
+
+data_without_spec[data_without_spec$layer == 3,] |> # 
+  group_by(year, global_id) |> 
+  summarise(n = length(unique(`Species_unified_2004-23`))) |> 
+  group_by(year) |> 
+  summarise(m = mean(n))
+```
+
+Create aggregates for most species which have most likely miss identification problems:
+```{r}
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Acinos alpinus"] <- "Acinos spec."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Acinos arvensis"] <- "Acinos spec."
+
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Potentilla verna"] <- "Potentilla verna / pusilla"
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Potentilla pusilla"] <- "Potentilla verna / pusilla"
+
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Alchemilla conjuncta aggr."] <- "Alchemilla alpina aggr. s.l."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Alchemilla cf. conjuncta aggr."] <- "Alchemilla alpina aggr. s.l."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Alchemilla alpina aggr."] <- "Alchemilla alpina aggr. s.l."
+
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Alchemilla cf. vulgaris aggr."] <- "Alchemilla vulgaris aggr. s.l."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Alchemilla vulgaris aggr."] <- "Alchemilla vulgaris aggr. s.l."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Alchemilla glabra aggr."] <- "Alchemilla vulgaris aggr. s.l."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Alchemilla hybrida aggr."] <- "Alchemilla vulgaris aggr. s.l."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Alchemilla fissa aggr."] <- "Alchemilla vulgaris aggr. s.l."
+
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Pulmonaria australis"] <- "Pulmonaria australis / mollis"
+
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Epipactis helleborine aggr."] <- "Epipactis spec."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Epipactis cf. helleborine aggr."] <- "Epipactis spec."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Epipactis atrorubens"] <- "Epipactis spec."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Epipactis cf. atrorubens"] <- "Epipactis spec."
+
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Rosa canina aggr."] <- "Rosa spec."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Rosa pendulina"] <- "Rosa spec."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Rosa rubiginosa aggr."] <- "Rosa spec."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Rosa corymbifera"] <- "Rosa spec."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Rosa cf. corymbifera"] <- "Rosa spec."
+
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Salix cf. appendiculata"] <- "Salix appendiculata / caprea"
+
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Rubus caesius"] <- "Rubus fruticosus aggr. s.l."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Rubus fruticosus aggr."] <- "Rubus fruticosus aggr. s.l."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Rubus canescens"] <- "Rubus fruticosus aggr. s.l."
+
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Vicia sativa L."] <- "Vicia sativa"
+
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Viola reichenbachiana"] <- "Viola reichenbachiana / riviniana"
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Viola cf. reichenbachiana"] <- "Viola reichenbachiana / riviniana"
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Viola riviniana"] <- "Viola reichenbachiana / riviniana"
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Viola cf. riviniana"] <- "Viola reichenbachiana / riviniana"
+
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Asteraceae"] <- "Asteraceae spec."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Apiaceae"] <- "Apiaceae spec."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Poaceae"] <- "Poaceae spec."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Caryophyllaceae"] <- "Caryophyllaceae spec."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Lamiaceae"] <- "Lamiaceae spec."
+```
+
+Correct subsp. for species in climax vegetation:
+```{r}
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Cerastium arvense"] <- "Cerastium arvense subsp. strictum"
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Cerastium fontanum"] <- "Cerastium fontanum subsp. vulgare"
+```
+
+Fix layer which are NA in data.
+```{r}
+data$layer[is.na(data$layer)] <- 3 # there is only a single row...
+```
+
+Merge rows with identical species and layer on the plots
+```{r}
+final_data <- data[0,] # create new data frame with same columns as data
+
+for(year in unique(data$year)) {
+  for(global_id in unique(data$global_id[data$year == year])) {
+    for(layer in unique(data$layer[data$year == year & data$global_id == global_id])) {
+      data[data$year == year & data$global_id == global_id & data$layer == 3,]
+      
+      subset <- data[data$year == year & data$global_id == global_id & data$layer == layer,]
+      for(taxon in unique(subset$`Species_unified_2004-23`)) {
+        new_row <- subset[subset$`Species_unified_2004-23` == taxon,]
+        new_row <- new_row[1,]
+        new_row$percentage200[1] <- sum(subset$percentage200[subset$`Species_unified_2004-23` == taxon])
+        new_row[,c("a1","a10","b1","b10","c1","c10","d1","d10")] <- 
+          as.list(as.numeric(colSums(subset[subset$`Species_unified_2004-23` == taxon,c("a1","a10","b1","b10","c1","c10","d1","d10")]) > 0))
+        final_data <- rbind(final_data, new_row)
+      }
+    }
+  }
+}
+```
+
+
+Write the result to file
+```{r}
+write_csv(final_data, "../Daten/Intermediate/combined_data.csv")
+```
+

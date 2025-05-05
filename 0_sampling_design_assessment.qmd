@@ -1,0 +1,225 @@
+---
+title: "sampling_design_assessement"
+format: html
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+library(tibble)
+library(readr)
+library(dplyr)
+library(ggplot2)
+```
+
+Read data generated using qgis and reformat it to be usable.
+```{r}
+x_min <- 2614000.0000
+x_max <- 2618000.0000
+y_min <- 1129000.0000
+y_max <- 1133000.0000
+
+raster <- data.frame(global_id = integer(), x_coord = numeric(), y_coord = numeric())
+id <- 1
+for(i in 0:32) {
+  for(j in 0:32) {
+    raster <- add_row(raster, global_id = id, x_coord = x_min + j*125, y_coord = y_max - i*125)
+    id <- id + 1
+  }
+}
+
+altitude <- read_delim("../Daten/QGIS/altitude_of_points.csv")
+altitude$altitude <- NA
+for(i in 1:length(altitude$altitude)) {
+  altitude$altitude[i] <- max(altitude[i,2:length(colnames(altitude))],na.rm = T)
+}
+altitude <- altitude[,c("fid", "altitude")]
+
+aspect <- read_delim("../Daten/QGIS/aspect_of_points.csv")
+aspect$aspect <- NA
+for(i in 1:length(aspect$aspect)) {
+  aspect$aspect[i] <- max(aspect[i,2:length(colnames(aspect))],na.rm = T)
+}
+aspect <- aspect[,c("fid", "aspect")]
+
+slope <- read_delim("../Daten/QGIS/slope_of_points.csv")
+slope$slope <- NA
+for(i in 1:length(slope$slope)) {
+  slope$slope[i] <- max(slope[i,2:length(colnames(slope))],na.rm = T)
+}
+slope <- slope[,c("fid", "slope")]
+
+raster <- inner_join(raster, altitude, join_by(global_id == fid))
+raster <- inner_join(raster, aspect, join_by(global_id == fid))
+raster <- inner_join(raster, slope, join_by(global_id == fid))
+
+write_csv(raster, "../Daten/Intermediate/slope_and_aspect.csv")
+
+baumverjuengung <- read_csv("../Daten/Leuk/Climax Daten 2024/baumverjuengung.csv")
+baumverjuengung <- baumverjuengung[,1:9]
+baumverjuengung[is.na(baumverjuengung)] <- 0
+bodentiefen <- read_csv("../Daten/Leuk/Climax Daten 2024/climax_bodentiefen.csv")
+bodentiefen <- bodentiefen[,1:10]
+baumverjuengung_komplett <- inner_join(baumverjuengung, raster, join_by(PlotID == global_id))
+baumverjuengung_komplett <- inner_join(baumverjuengung_komplett, bodentiefen, join_by(PlotID == PlotID))
+write_csv(baumverjuengung_komplett, "../Daten/Intermediate/baumverjuengung_komplett.csv")
+```
+
+Combine data and raster and do checking that everything is as expected. This includes comparing qgis estimated slope and aspect with field measurements.
+```{r}
+data <- read_csv("../Daten/Leuk/Erste Daten von Tom/data_2004_2023_main_with_global_id.csv")
+all_data <- inner_join(raster, data, by = join_by(global_id))
+
+# Check that the altitude makes sense
+mean(all_data$altitude - all_data$elevation_m)
+sd(all_data$altitude - all_data$elevation_m)
+hist(all_data$altitude - all_data$elevation_m)
+
+# Check that all coordinates are correct
+max(abs(all_data$coordX - all_data$x_coord + 2e6))
+max(abs(all_data$coordY - all_data$y_coord + 1e6))
+
+colnames(all_data)
+
+header <- read_delim("../Daten/Leuk/Erste Daten von Tom/az_faktoren1.csv")
+all_data <- inner_join(all_data, header, by = join_by(plotid))
+all_data <- all_data[match(unique(all_data$plot_no), all_data$plot_no),]
+
+mean(all_data$neigung - all_data$slope)
+sd(all_data$neigung - all_data$slope)
+hist(all_data$neigung - all_data$slope)
+
+# aspect ist in grad [0-360], exposition in gon [0-400]
+mean(all_data$aspect - all_data$exposition/400*360)
+sd(all_data$aspect - all_data$exposition/400*360)
+hist(all_data$aspect - all_data$exposition/400*360)
+```
+
+Create a list of global ids for which a releve should be done.
+```{r}
+gid_of_additional_points <- 
+  c(191,222,223,227,251,254,260,282,283,284,285,286,314,315,325,326,346,347,357,358,378,379,390,444,455,456,477,487,488,509,520,521,542,553,554,574,575,585,586,605,607,617,637,639,640,649,669,670,680,681,682,703,712,745,769,776,778,803,808,811,836,837,870)
+gid_of_new_points <- c(802, 702)
+gid_of_points_on_patch <- c(837, 703)
+
+length(unique(gid_of_additional_points))
+```
+
+Show the density of plots with respect to altitude, aspect and slope
+```{r}
+raster$sampled = raster$global_id %in% all_data$global_id
+raster$new = raster$global_id %in% gid_of_additional_points
+raster$additional = raster$global_id %in% gid_of_new_points
+raster$on_patch = raster$global_id %in% gid_of_points_on_patch
+raster$total = raster$new & (!raster$on_patch) | raster$additional
+
+p <- ggplot(data = raster[raster$total,], aes(x = altitude)) + 
+  geom_density(data = all_data, aes(x = altitude), bw = 80, col = "red") + 
+  geom_density(bw = 80, col = "blue")
+ggsave("../Daten/Results/Sampling Design Assessement/plot_density_distribution_of_altitude.png", p)
+
+height_band_width <- (max(raster$altitude[raster$sampled | raster$total]) - min(raster$altitude[raster$sampled | raster$total]) + 1)/3
+
+raster$height_band = 
+  floor((raster$altitude - min(raster$altitude[raster$sampled | raster$total]))/height_band_width)
+
+for(hb in 0:2) {
+  raster$height_band[raster$height_band == hb] <- paste(round(min(raster$altitude[raster$sampled | raster$total]) + hb*height_band_width), " - ", round(min(raster$altitude[raster$sampled | raster$total]) + (hb + 1) * height_band_width), sep = "")
+}
+
+p <- ggplot(data = raster[raster$total,], aes(x = aspect)) + 
+  geom_density(data = raster[raster$sampled,], aes(x = aspect), bw = 10, col = "red") + 
+  geom_density(bw = 10, col = "blue") +
+  facet_wrap(vars(height_band))
+ggsave("../Daten/Results/Sampling Design Assessement/plot_density_distribution_of_aspect.png", p)
+
+p <- ggplot(data = raster[raster$total,], aes(x = slope)) + 
+  geom_density(data = raster[raster$sampled,], aes(x = slope), bw = 3, col = "red") + 
+  geom_density(bw = 3, col = "blue") +
+  facet_wrap(vars(height_band))
+ggsave("../Daten/Results/Sampling Design Assessement/plot_density_distribution_of_slope.png", p)
+```
+
+This code plots the old and new points on a map. To visualize them.
+```{r}
+## Plotting data points by coordinates (CH1903/LV03) on relief of switzerland
+library(readxl)
+library(raster)
+library(rgdal)
+library(devtools)
+
+rel <- brick("../Daten/QGIS/swiss-map-raster25-clipped.tif")
+plotRGB(rel)
+raster$color[raster$sampled] <- "red"
+raster$color[raster$total] <- "blue"
+raster$color[raster$on_patch] <- "black"
+raster$color[raster$additional] <- "magenta"
+raster$color[!raster$sampled & !raster$total & !raster$on_patch] <- ""
+points(x = raster$x_coord[raster$sampled | raster$total | raster$on_patch], y = raster$y_coord[raster$sampled | raster$total | raster$on_patch], col = raster$color[raster$sampled | raster$total | raster$on_patch], type = "p" )
+
+# add labels with global ids to the plots
+text(x = raster$x_coord, y = raster$y_coord, as.character(raster$global_id), col = "black")
+```
+
+
+Convert the coordinates of the additional plots to WGS global coordinates and generate .csv file which can be converted to a klm file to display the points on the map on the mobile phone.
+
+Conversion code from here: https://github.com/ValentinMinder/Swisstopo-WGS84-LV03/blob/master/scripts/r/WGS84_CH1903.R
+```{r}
+CH.to.WGS.lat <- function (y, x){
+
+	## Converts military to civil and  to unit = 1000km
+	## Auxiliary values (% Bern)
+	y_aux <- (y - 600000)/1000000
+	x_aux <- (x - 200000)/1000000
+
+	## Process lat
+	lat <- {16.9023892 +
+	3.238272 * x_aux -
+	0.270978 * (y_aux^2) -
+	0.002528 * (x_aux^2) -
+	0.0447   * (y_aux^2) * x_aux -
+	0.0140   * (x_aux^3)}
+
+	## Unit 10000" to 1 " and converts seconds to degrees (dec)
+	lat <- lat * 100/36
+
+  	return(lat)  
+}
+
+## Convert CH y/x to WGS long
+CH.to.WGS.lng <- function (y, x){
+
+	## Converts military to civil and  to unit = 1000km
+	## Auxiliary values (% Bern)
+	y_aux <- (y - 600000)/1000000
+	x_aux <- (x - 200000)/1000000
+
+	## Process long
+	lng <- {2.6779094 +
+	4.728982 * y_aux +
+	0.791484 * y_aux * x_aux +
+	0.1306   * y_aux * (x_aux^2) -
+	0.0436   * (y_aux^3)}
+
+	## Unit 10000" to 1 " and converts seconds to degrees (dec)
+  	lng <- lng * 100/36
+
+	return(lng)
+}
+
+lat <- CH.to.WGS.lat(raster[raster$global_id %in% gid_of_additional_points,]$x_coord - 2e6, raster[raster$global_id %in% gid_of_additional_points,]$y_coord - 1e6)
+long <- CH.to.WGS.lng(raster[raster$global_id %in% gid_of_additional_points,]$x_coord - 2e6, raster[raster$global_id %in% gid_of_additional_points,]$y_coord - 1e6)
+write_csv(data.frame(gid = raster[raster$global_id %in% gid_of_additional_points,]$global_id, long = long, lat = lat), "../Daten/Field/coordinates_of_new_points.csv")
+
+lat <- CH.to.WGS.lat(raster[raster$global_id %in% gid_of_new_points,]$x_coord - 2e6, raster[raster$global_id %in% gid_of_new_points,]$y_coord - 1e6)
+long <- CH.to.WGS.lng(raster[raster$global_id %in% gid_of_new_points,]$x_coord - 2e6, raster[raster$global_id %in% gid_of_new_points,]$y_coord - 1e6)
+write_csv(data.frame(gid = raster[raster$global_id %in% gid_of_new_points,]$global_id, long = long, lat = lat), "../Daten/Field/coordinates_of_additional_points.csv")
+```
+

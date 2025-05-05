@@ -1,0 +1,561 @@
+---
+title: "tryout_try"
+format: html
+---
+
+## Description
+
+This file is used to match species found in the leuk data to species found in TRY, Landolt et al Flora indicativa and Euro + Med
+```{r}
+library(readr)
+library(stringi)
+library(tibble)
+```
+
+Read in datasets
+```{r}
+landolt_data <- read.csv("../Daten/Landolt/2023-03-29_FI-export_Stefan_Widmer.csv")
+head(landolt_data)
+try_species_list <- read_delim("../Daten/TRY/complete_species_list.txt", "\t")
+head(try_species_list)
+midolo_species_list <- read_delim("../Daten/Disturbance Indicator Values/disturbance_indicator_values.csv")
+length(midolo_species_list$species)
+eive_list <- read_delim("../Daten/EIVE/EIVE_Paper_1.0_SM_08.csv")
+length(eive_list$TaxonConcept)
+
+main_data <- read_csv("../Daten/Intermediate/combined_data.csv")
+species <- unique(main_data$`Species_unified_2004-23`)
+species[endsWith(species, " cf")] <- gsub(" cf", "", species[endsWith(species, " cf")])
+species[stri_detect(species, regex = "cf\\. ")] <- gsub("cf. ", "", species[stri_detect(species, regex = "cf\\. ")])
+unique_species <- unique(species)
+```
+
+Map leuk taxa to species in TRY
+```{r}
+species <- unique_species
+species[endsWith(species, " spec.")] <- gsub(" spec.", " sp", species[endsWith(species, "spec.")])
+species[endsWith(species, " sp.")] <- gsub(" sp.", " sp", species[endsWith(species, "sp.")])
+
+# remove aggr.
+# There are no aggregates in TRY -> I remove all of them.
+species[endsWith(species, " aggr.")] <- gsub(" aggr.", "", species[endsWith(species, " aggr.")])
+
+replacements <- data.frame(old = character(), new = character())
+
+# remove subsp.
+replacements <- add_row(replacements, old = "Linaria genistifolia subsp. dalmatica", new = "Linaria genistifolia")
+replacements <- add_row(replacements, old = "Dactylorhiza maculata subsp. fuchsii", new = "Dactylorhiza maculata")
+
+# synonyms
+# reference for synonyms: https://powo.science.kew.org/
+replacements <- add_row(replacements, old = "Melilotus albus", new = "Trigonella alba")
+replacements <- add_row(replacements, old = "Onosma helvetica", new = "Onosma taurica")
+replacements <- add_row(replacements, old = "Listera ovata", new = "Neottia ovata")
+replacements <- add_row(replacements, old = "Chenopodium hybridum", new = "Chenopodiastrum hybridum")
+replacements <- add_row(replacements, old = "Caucalis platycarpos", new = "Orlaya daucoides")
+replacements <- add_row(replacements, old = "Leontodon helveticus", new = "Scorzoneroides helvetica")
+replacements <- add_row(replacements, old = "Plantago serpentina", new = "Plantago subulata")
+replacements <- add_row(replacements, old = "Coeloglossum viride", new = "Dactylorhiza viridis")
+replacements <- add_row(replacements, old = "Nigritelle rhellicani", new = "Gymnadenia rhellicani")
+replacements <- add_row(replacements, old = "Minuartia verna", new = "Sabulina verna")
+replacements <- add_row(replacements, old = "Aster bellidiastrum", new = "Erigeron andicola")
+replacements <- add_row(replacements, old = "Poa molinerii", new = "Poa perconcinna")
+replacements <- add_row(replacements, old = "Elymus hispidus", new = "Thinopyrum intermedium")
+replacements <- add_row(replacements, old = "Euphrasia rostkoviana subsp. rostkoviana", new = "Euphrasia officinalis")
+replacements <- add_row(replacements, old = "Polygonum viviparum", new = "Bistorta vivipara")
+replacements <- add_row(replacements, old = "Orchis ustulata", new = "Neotinea ustulata")
+replacements <- add_row(replacements, old = "Hieracium lactucella", new = "Pilosella lactucella")
+replacements <- add_row(replacements, old = "Brachypodium rupestre", new = "Brachypodium pinnatum") # this is not correct but pragmatic?
+replacements <- add_row(replacements, old = "Gentiana campestris", new = "Gentianella amarella subsp. amarella")
+replacements <- add_row(replacements, old = "Hieracium pilosella", new = "Pilosella officinarum")
+replacements <- add_row(replacements, old = "Polygala chamaebuxus", new = "Polygaloides chamaebuxus")
+replacements <- add_row(replacements, old = "Thlaspi perfoliatum", new = "Noccaea perfoliata")
+replacements <- add_row(replacements, old = "Acinos arvensis", new = "Clinopodium acinos")
+replacements <- add_row(replacements, old = "Chaenorrhinum minus", new = "Chaenorhinum minus")
+replacements <- add_row(replacements, old = "Mycelis muralis", new = "Lactuca muralis")
+replacements <- add_row(replacements, old = "Vicia sativa L.", new = "Vicia sativa")
+replacements <- add_row(replacements, old = "Vaccinium vitis-idaea", new = "Vaccinium vitis") # Error in TRY?!
+replacements <- add_row(replacements, old = "Arctostaphylos uva-ursi", new = "Arctostaphylos uva") # Error in TRY?!
+replacements <- add_row(replacements, old = "Atropa bella-donna", new = "Atropa belladonna")
+replacements <- add_row(replacements, old = "Silene pratensis", new = "Silene latifolia")
+replacements <- add_row(replacements, old = "Hieracium piloselloides", new = "Pilosella piloselloides")
+replacements <- add_row(replacements, old = "Seseli libanotis", new = "Libanotis pyrenaica")
+replacements <- add_row(replacements, old = "Anthemis tinctoria", new = "Cota tinctoria")
+replacements <- add_row(replacements, old = "Micropus erectus", new = "Bombycilaena erecta")
+replacements <- add_row(replacements, old = "Salix appendiculata / caprea", new = "Salix appendiculata")
+replacements <- add_row(replacements, old = "Rhamnus alpina", new = "Frangula grandiflora")
+replacements <- add_row(replacements, old = "Hieracium staticifolium", new = "Tolpis staticifolia")
+replacements <- add_row(replacements, old = "Sedum montanum", new = "Sempervivum montanum")
+replacements <- add_row(replacements, old = "Arabis turrita", new = "Pseudoturritis turrita")
+replacements <- add_row(replacements, old = "Galeopsis angustifolia", new = "Galeopsis ladanum subsp. angustifolia")
+replacements <- add_row(replacements, old = "Peucedanum ostruthium", new = "Imperatoria ostruthium")
+replacements <- add_row(replacements, old = "Silene rupestris", new = "Atocion rupestre")
+replacements <- add_row(replacements, old = "Acinos alpinus", new = "Clinopodium alpinum")
+replacements <- add_row(replacements, old = "Alchemilla hybrida", new = "Alchemilla splendens")
+replacements <- add_row(replacements, old = "Vaccinium gaultherioides", new = "Vaccinium uliginosum subsp. uliginosum")
+replacements <- add_row(replacements, old = "Acinos sp", new = "Clinopodium sp")
+replacements <- add_row(replacements, old = "Melilotus officinalis", new = "Trigonella officinalis")
+replacements <- add_row(replacements, old = "Avenella flexuosa", new = "Deschampsia flexuosa")
+replacements <- add_row(replacements, old = "Globularia bisnagarica", new = "Globularia punctata")
+replacements <- add_row(replacements, old = "Inula conyzae", new = "Pentanema conyzae")
+replacements <- add_row(replacements, old = "Peucedanum cervaria", new = "Cervaria rivini")
+replacements <- add_row(replacements, old = "Hepatica nobilis", new = "Anemone hepatica")
+replacements <- add_row(replacements, old = "Laserpitium gaudinii", new = "Laserpitium krapffii subsp. gaudinii")
+replacements <- add_row(replacements, old = "Ononis repens", new = "Ononis spinosa subsp. procurrens")
+replacements <- add_row(replacements, old = "Muscari comosum", new = "Leopoldia comosa")
+replacements <- add_row(replacements, old = "Centaurea valesiaca", new = "Centaurea vallesiaca")
+replacements <- add_row(replacements, old = "Stipa eriocaulis", new = "Stipa pennata subsp. pennata")
+
+m <- match(replacements$old, species)
+species[m[!is.na(m)]] <- replacements$new[!is.na(m)]
+m <- match(replacements$old, species)
+species[m[!is.na(m)]] <- replacements$new[!is.na(m)]
+
+try_taxa <- species
+try_taxa[!(try_taxa %in% try_species_list$AccSpeciesName)] <- NA
+
+mosses <- read_csv("../Daten/Leuk/Hand Curated/moss_taxa.csv")
+
+species <- species[!species %in% mosses]
+
+inexistent <- c("Potentilla verna", "Capsella bursa-pastoris", "Molinia arundinacea", "Itea virginica L.", "Caryophyllaceae sp", "Populus ×canescens", "Amaranthaceae sp", "Einjährig", "Flache lange blätter", "Poaceae", "Caryophyllaceae", "A10", "Asteraceae", "Pflanze", "Keimling 1", "Keimling 2", "Runde blätter", "Sedum montanum", "Lamiaceae", "Apiaceae", "Amelanchier humilis")
+species <- species[!species %in% inexistent]
+
+"Leontodon helveticus" %in% try_species_list$AccSpeciesName
+try_species_list$AccSpeciesName[startsWith(try_species_list$AccSpeciesName, "Amelanchier hu")]
+try_species_list$AccSpeciesName[endsWith(try_species_list$AccSpeciesName, " verna")]
+sum(species %in% try_species_list$AccSpeciesName)
+species[!(species %in% try_species_list$AccSpeciesName)]
+
+
+# Write the species ID to file such that the Traits can be downloaded for this specific subset from TRY
+write(try_species_list[try_species_list$AccSpeciesName %in% species,]$AccSpeciesID, "../Daten/TRY/id_of_try_species_in_leuk.txt", sep=",", ncolumns=length(try_species_list[try_species_list$AccSpeciesName %in% species,]$AccSpeciesID))
+```
+
+Map the leuk taxa to species in landolt
+```{r}
+species <- unique_species
+
+# reference for replacements: https://powo.science.kew.org/
+replacements <- data.frame(old = character(), new = character())
+# removing aggr.
+replacements <- add_row(replacements, old = "Erysimum rhaeticum aggr.", new = "Erysimum rhaeticum")
+replacements <- add_row(replacements, old = "Hieracium prenanthoides aggr.", new = "Hieracium prenanthoides")
+replacements <- add_row(replacements, old = "Alchemilla glabra aggr.", new = "Alchemilla glabra")
+replacements <- add_row(replacements, old = "Hieracium laevigatum aggr.", new = "Hieracium laevigatum")
+replacements <- add_row(replacements, old = "Alchemilla fissa aggr.", new = "Alchemilla fissa")
+replacements <- add_row(replacements, old = "Hieracium villosum aggr.", new = "Hieracium villosum")
+replacements <- add_row(replacements, old = "Galium pumilum aggr.", new = "Galium pumilum")
+replacements <- add_row(replacements, old = "Alchemilla conjuncta aggr.", new = "Alchemilla conjuncta")
+replacements <- add_row(replacements, old = "Hieracium sabaudum aggr.", new = "Hieracium sabaudum")
+replacements <- add_row(replacements, old = "Hieracium glaucinum aggr.", new = "Hieracium glaucinum")
+replacements <- add_row(replacements, old = "Festuca valesiaca aggr.", new = "Festuca valesiaca")
+
+# adding aggr.
+replacements <- add_row(replacements, old = "Potentilla verna", new = "Potentilla verna aggr.")
+replacements <- add_row(replacements, old = "Sagina apetala subsp. apetala", new = "Sagina apetala aggr.")
+
+# removing subsp.
+replacements <- add_row(replacements, old = "Prunus padus subsp. padus", new = "Prunus padus")
+replacements <- add_row(replacements, old = "Scabiosa columbaria subsp. columbaria", new = "Scabiosa columbaria")
+replacements <- add_row(replacements, old = "Euphrasia rostkoviana subsp. rostkoviana", new = "Euphrasia rostkoviana")
+replacements <- add_row(replacements, old = "Scorzonera laciniata subsp. laciniata", new = "Scorzonera laciniata")
+replacements <- add_row(replacements, old = "Luzula luzuloides subsp. luzuloides", new = "Luzula luzuloides")
+replacements <- add_row(replacements, old = "Ranunculus acris subsp. friesianus", new = "Ranunculus acris")
+replacements <- add_row(replacements, old = "Dactylorhiza maculata subsp. fuchsii", new = "Dactylorhiza maculata")
+replacements <- add_row(replacements, old = "Linaria genistifolia subsp. dalmatica", new = "Linaria genistifolia")
+replacements <- add_row(replacements, old = "Veronica prostrata subsp. prostrata", new = "Veronica prostrata")
+replacements <- add_row(replacements, old = "Crepis vesicaria subsp. taraxacifolia", new = "Crepis vesicaria")
+replacements <- add_row(replacements, old = "Cerastium fontanum subsp. vulgare", new = "Cerastium fontanum")
+replacements <- add_row(replacements, old = "Cerastium arvense subsp. strictum", new = "Cerastium arvense")
+replacements <- add_row(replacements, old = "Viola canina subsp. montana", new = "Viola canina aggr.")
+replacements <- add_row(replacements, old = "Ononis repens", new = "Ononis spinosa aggr.")
+
+# specializations
+replacements <- add_row(replacements, old = "Salix appendiculata / caprea", new = "Salix appendiculata")
+replacements <- add_row(replacements, old = "Populus ×canescens", new = "Populus canescens") # remove hybrid sign?
+
+# bugfixes in Leuk data
+replacements <- add_row(replacements, old = "Nigritelle rhellicani", new = "Nigritella rhellicani")
+replacements <- add_row(replacements, old = "Vicia sativa L.", new = "Vicia sativa")
+
+m <- match(replacements$old, species)
+species[m[!is.na(m)]] <- replacements$new[!is.na(m)]
+
+landolt_taxa <- species
+landolt_taxa[!(landolt_taxa %in% landolt_data$Taxon)] <- NA
+
+write_csv(data.frame(infoflora_taxon = unique_species, try_taxa = try_taxa, landolt_taxa = landolt_taxa), "../Daten/Intermediate/leuk_landolt_try_taxon_conversion.csv")
+
+
+species <- species[!species %in% mosses]
+
+inexistent <- species[endsWith(species, "spec.") | endsWith(species, "sp.")]
+inexistent <- append(inexistent, "Adenostyles alpina")
+inexistent <- append(inexistent, "Ranunculus tuberosus aggr.")
+inexistent <- append(inexistent, "Alchemilla hybrida aggr.")
+inexistent <- append(inexistent, "Erigeron acris")
+#neophytes
+inexistent <- append(inexistent, "Amaranthus hypochondriacus")
+inexistent <- append(inexistent, "Crepis sancta")
+inexistent <- append(inexistent, "Einjährig")
+inexistent <- append(inexistent, "Flache lange blätter")
+inexistent <- append(inexistent, "Keimling 1")
+inexistent <- append(inexistent, "Keimling 2")
+inexistent <- append(inexistent, "A10")
+inexistent <- append(inexistent, "Pflanze")
+inexistent <- append(inexistent, "Runde blätter")
+inexistent <- append(inexistent, "Asteraceae")
+inexistent <- append(inexistent, "Lamiaceae")
+inexistent <- append(inexistent, "Apiaceae")
+inexistent <- append(inexistent, "Poaceae")
+inexistent <- append(inexistent, "Caryophyllaceae")
+inexistent <- append(inexistent, "Amelanchier humilis")
+
+species <- species[!species %in% inexistent]
+
+"Potentilla verna" %in% landolt_data$Taxon
+landolt_data$Taxon[startsWith(landolt_data$Taxon, "Ononis")]
+landolt_data$Taxon[endsWith(landolt_data$Taxon, "fragilis")]
+sum(species %in% landolt_data$Taxon)
+species[!(species %in% landolt_data$Taxon)]
+```
+
+Map the leuk taxa to species in Euro+Med taxonomic midolo backbone
+```{r}
+species <- unique_species
+
+# reference for replacements: https://powo.science.kew.org/
+replacements <- data.frame(old = character(), new = character())
+# removing aggr.
+replacements <- add_row(replacements, old = "Festuca halleri aggr.", new = "Festuca halleri")
+replacements <- add_row(replacements, old = "Festuca varia aggr.", new = "Festuca varia")
+replacements <- add_row(replacements, old = "Hieracium umbellatum aggr.", new = "Hieracium umbellatum")
+replacements <- add_row(replacements, old = "Hieracium laevigatum aggr.", new = "Hieracium laevigatum")
+replacements <- add_row(replacements, old = "Erigeron alpinus aggr.", new = "Erigeron alpinus")
+replacements <- add_row(replacements, old = "Alchemilla conjuncta aggr.", new = "Alchemilla conjuncta")
+replacements <- add_row(replacements, old = "Hieracium villosum aggr.", new = "Hieracium villosum")
+replacements <- add_row(replacements, old = "Alchemilla glabra aggr.", new = "Alchemilla glabra")
+replacements <- add_row(replacements, old = "Alchemilla fissa aggr.", new = "Alchemilla fissa")
+replacements <- add_row(replacements, old = "Alchemilla alpina aggr.", new = "Alchemilla alpina")
+replacements <- add_row(replacements, old = "Luzula sylvatica aggr.", new = "Luzula sylvatica")
+replacements <- add_row(replacements, old = "Hypochaeris uniflora aggr.", new = "Hypochaeris uniflora")
+replacements <- add_row(replacements, old = "Alchemilla hybrida aggr.", new = "Alchemilla hybrida")
+replacements <- add_row(replacements, old = "Chaerophyllum hirsutum aggr.", new = "Chaerophyllum hirsutum")
+replacements <- add_row(replacements, old = "Carex muricata aggr.", new = "Carex muricata")
+replacements <- add_row(replacements, old = "Galium pumilum aggr.", new = "Galium pumilum")
+replacements <- add_row(replacements, old = "Myosotis sylvatica aggr.", new = "Myosotis sylvatica")
+replacements <- add_row(replacements, old = "Solidago canadensis aggr.", new = "Solidago canadensis")
+replacements <- add_row(replacements, old = "Hieracium sabaudum aggr.", new = "Hieracium sabaudum")
+replacements <- add_row(replacements, old = "Populus nigra aggr.", new = "Populus nigra")
+replacements <- add_row(replacements, old = "Thymus serpyllum aggr.", new = "Thymus serpyllum")
+replacements <- add_row(replacements, old = "Crataegus monogyna aggr.", new = "Crataegus monogyna")
+replacements <- add_row(replacements, old = "Hieracium murorum aggr.", new = "Hieracium murorum")
+replacements <- add_row(replacements, old = "Phleum pratense aggr.", new = "Phleum pratense")
+replacements <- add_row(replacements, old = "Epipactis helleborine aggr.", new = "Epipactis helleborine")
+replacements <- add_row(replacements, old = "Hieracium prenanthoides aggr.", new = "Hieracium prenanthoides")
+replacements <- add_row(replacements, old = "Stipa pennata aggr.", new = "Stipa pennata")
+replacements <- add_row(replacements, old = "Festuca ovina aggr.", new = "Festuca ovina")
+replacements <- add_row(replacements, old = "Arenaria serpyllifolia aggr.", new = "Arenaria serpyllifolia")
+replacements <- add_row(replacements, old = "Ononis spinosa aggr.", new = "Ononis spinosa")
+replacements <- add_row(replacements, old = "Lotus corniculatus aggr.", new = "Lotus corniculatus")
+replacements <- add_row(replacements, old = "Erysimum rhaeticum aggr.", new = "Erysimum rhaeticum")
+replacements <- add_row(replacements, old = "Festuca violacea aggr.", new = "Festuca violacea")
+replacements <- add_row(replacements, old = "Hieracium glaucinum aggr.", new = "Hieracium glaucinum")
+replacements <- add_row(replacements, old = "Galium rubrum aggr.", new = "Galium rubrum")
+
+# adding aggr.
+replacements <- add_row(replacements, old = "Dactylorhiza maculata subsp. fuchsii", new = "Dactylorhiza maculata aggr.")
+replacements <- add_row(replacements, old = "Hedera helix", new = "Hedera helix aggr.")
+replacements <- add_row(replacements, old = "Elymus repens", new = "Elytrigia repens aggr.")
+replacements <- add_row(replacements, old = "Aconitum napellus", new = "Aconitum napellus aggr.")
+replacements <- add_row(replacements, old = "Geranium rivulare", new = "Geranium sylvaticum aggr.")
+replacements <- add_row(replacements, old = "Ranunculus acris subsp. friesianus", new = "Ranunculus acris aggr.")
+replacements <- add_row(replacements, old = "Geranium sylvaticum", new = "Geranium sylvaticum aggr.")
+replacements <- add_row(replacements, old = "Veronica chamaedrys", new = "Veronica chamaedrys aggr.")
+replacements <- add_row(replacements, old = "Galeopsis tetrahit", new = "Galeopsis tetrahit aggr.")
+replacements <- add_row(replacements, old = "Molinia arundinacea", new = "Molinia caerulea aggr.")
+replacements <- add_row(replacements, old = "Tripleurospermum inodorum", new = "Tripleurospermum maritimum aggr.")
+replacements <- add_row(replacements, old = "Papaver dubium", new = "Papaver dubium aggr.")
+replacements <- add_row(replacements, old = "Amaranthus hypochondriacus", new = "Amaranthus hybridus aggr.")
+replacements <- add_row(replacements, old = "Dianthus carthusianorum", new = "Dianthus carthusianorum aggr.")
+replacements <- add_row(replacements, old = "Carduus defloratus", new = "Carduus defloratus aggr.")
+replacements <- add_row(replacements, old = "Scabiosa triandra", new = "Scabiosa columbaria aggr.")
+replacements <- add_row(replacements, old = "Scabiosa columbaria subsp. columbaria", new = "Scabiosa columbaria aggr.")
+replacements <- add_row(replacements, old = "Melica ciliata", new = "Melica ciliata aggr.")
+replacements <- add_row(replacements, old = "Sanguisorba minor", new = "Sanguisorba minor aggr.")
+replacements <- add_row(replacements, old = "Chenopodium album", new = "Chenopodium album aggr.")
+replacements <- add_row(replacements, old = "Poa angustifolia", new = "Poa pratensis aggr.")
+replacements <- add_row(replacements, old = "Festuca rubra", new = "Festuca rubra aggr.")
+replacements <- add_row(replacements, old = "Leontodon crispus", new = "Leontodon crispus aggr.")
+
+# removing subsp.
+replacements <- add_row(replacements, old = "Euphrasia rostkoviana subsp. rostkoviana", new = "Euphrasia rostkoviana")
+replacements <- add_row(replacements, old = "Vaccinium gaultherioides", new = "Vaccinium uliginosum")
+replacements <- add_row(replacements, old = "Luzula luzuloides subsp. luzuloides", new = "Luzula luzuloides")
+replacements <- add_row(replacements, old = "Sagina apetala subsp. apetala", new = "Sagina apetala")
+replacements <- add_row(replacements, old = "Cerastium arvense subsp. strictum", new = "Cerastium arvense")
+replacements <- add_row(replacements, old = "Scorzonera laciniata subsp. laciniata", new = "Scorzonera laciniata")
+replacements <- add_row(replacements, old = "Laserpitium gaudinii", new = "Laserpitium krapfii")
+replacements <- add_row(replacements, old = "Crepis vesicaria subsp. taraxacifolia", new = "Crepis vesicaria")
+replacements <- add_row(replacements, old = "Veronica prostrata subsp. prostrata", new = "Veronica prostrata")
+replacements <- add_row(replacements, old = "Prunus padus subsp. padus", new = "Prunus padus")
+replacements <- add_row(replacements, old = "Viola canina subsp. montana", new = "Viola canina")
+
+# add subsp.
+replacements <- add_row(replacements, old = "Juniperus communis", new = "Juniperus communis subsp. communis")
+replacements <- add_row(replacements, old = "Cerastium fontanum", new = "Cerastium fontanum subsp. fontanum")
+replacements <- add_row(replacements, old = "Pinus mugo", new = "Pinus mugo subsp. mugo")
+
+# specializations
+replacements <- add_row(replacements, old = "Salix appendiculata / caprea", new = "Salix appendiculata")
+
+# bugfixes in Leuk data
+replacements <- add_row(replacements, old = "Vicia sativa L.", new = "Vicia sativa")
+
+# synonyms
+replacements <- add_row(replacements, old = "Chenopodium hybridum", new = "Chenopodiastrum hybridum")
+replacements <- add_row(replacements, old = "Hieracium pilosella", new = "Pilosella officinarum")
+replacements <- add_row(replacements, old = "Thlaspi perfoliatum", new = "Noccaea perfoliata")
+replacements <- add_row(replacements, old = "Acinos arvensis", new = "Clinopodium acinos")
+replacements <- add_row(replacements, old = "Mycelis muralis", new = "Lactuca muralis")
+replacements <- add_row(replacements, old = "Silene pratensis", new = "Silene latifolia")
+replacements <- add_row(replacements, old = "Hieracium piloselloides", new = "Pilosella piloselloides")
+replacements <- add_row(replacements, old = "Anthemis tinctoria", new = "Cota tinctoria")
+replacements <- add_row(replacements, old = "Micropus erectus", new = "Bombycilaena erecta")
+replacements <- add_row(replacements, old = "Hieracium staticifolium", new = "Tolpis staticifolia")
+replacements <- add_row(replacements, old = "Arabis turrita", new = "Pseudoturritis turrita")
+replacements <- add_row(replacements, old = "Silene rupestris", new = "Atocion rupestre")
+replacements <- add_row(replacements, old = "Acinos alpinus", new = "Clinopodium alpinum")
+replacements <- add_row(replacements, old = "Hieracium lactucella", new = "Pilosella lactucella")
+replacements <- add_row(replacements, old = "Orchis ustulata", new = "Neotinea ustulata")
+replacements <- add_row(replacements, old = "Poa molinerii", new = "Poa perconcinna")
+replacements <- add_row(replacements, old = "Polygonum viviparum", new = "Bistorta vivipara")
+replacements <- add_row(replacements, old = "Nigritelle rhellicani", new = "Gymnadenia rhellicani")
+replacements <- add_row(replacements, old = "Leontodon helveticus", new = "Scorzoneroides helvetica")
+replacements <- add_row(replacements, old = "Plantago serpentina", new = "Plantago subulata")
+replacements <- add_row(replacements, old = "Coeloglossum viride", new = "Dactylorhiza viridis")
+replacements <- add_row(replacements, old = "Linaria genistifolia subsp. dalmatica", new = "Linaria genistifolia")
+replacements <- add_row(replacements, old = "Listera ovata", new = "Neottia ovata")
+replacements <- add_row(replacements, old = "Bromus riparius", new = "Bromopsis riparia")
+replacements <- add_row(replacements, old = "Bromus tectorum", new = "Anisantha tectorum")
+replacements <- add_row(replacements, old = "Bromus ramosus", new = "Brachypodium retusum")
+replacements <- add_row(replacements, old = "Poa supina", new = "Ochlopoa supina")
+replacements <- add_row(replacements, old = "Hieracium cymosum", new = "Pilosella cymosa")
+replacements <- add_row(replacements, old = "Onosma helvetica", new = "Onosma echioides")
+replacements <- add_row(replacements, old = "Populus ×canescens", new = "Populus x canescens")
+replacements <- add_row(replacements, old = "Rumex alpestris", new = "Rumex scutatus")
+replacements <- add_row(replacements, old = "Aster bellidiastrum", new = "Bellidiastrum michelii")
+replacements <- add_row(replacements, old = "Elymus hispidus", new = "Elytrigia intermedia")
+replacements <- add_row(replacements, old = "Gentiana campestris", new = "Gentianella campestris")
+replacements <- add_row(replacements, old = "Salix elaeagnos", new = "Salix eleagnos")
+replacements <- add_row(replacements, old = "Bromus inermis", new = "Bromopsis inermis")
+replacements <- add_row(replacements, old = "Lappula deflexa", new = "Hackelia deflexa")
+replacements <- add_row(replacements, old = "Poa annua", new = "Ochlopoa annua")
+replacements <- add_row(replacements, old = "Festuca arundinacea", new = "Schedonorus arundinaceus")
+replacements <- add_row(replacements, old = "Cirsium acaule", new = "Cirsium acaulon")
+replacements <- add_row(replacements, old = "Festuca pratensis", new = "Schedonorus pratensis")
+replacements <- add_row(replacements, old = "Anchusa arvensis", new = "Lycopsis arvensis")
+replacements <- add_row(replacements, old = "Bromus sterilis", new = "Anisantha sterilis")
+replacements <- add_row(replacements, old = "Chaenorrhinum minus", new = "Microrrhinum minus")
+replacements <- add_row(replacements, old = "Helictotrichon pubescens", new = "Avenula pubescens")
+replacements <- add_row(replacements, old = "Conyza canadensis", new = "Erigeron canadensis")
+replacements <- add_row(replacements, old = "Bromus erectus", new = "Bromopsis erecta")
+replacements <- add_row(replacements, old = "Muscari comosum", new = "Leopoldia comosa")
+
+
+m <- match(replacements$old, species)
+species[m[!is.na(m)]] <- replacements$new[!is.na(m)]
+
+midolo_taxa <- species
+midolo_taxa[!(midolo_taxa %in% midolo_species_list$species)] <- NA
+
+species <- species[!species %in% mosses]
+
+inexistent <- species[endsWith(species, "spec.") | endsWith(species, "sp.")]
+inexistent <- append(inexistent, "Rosa corymbifera")
+inexistent <- append(inexistent, "Anemone narcissiflora")
+inexistent <- append(inexistent, "Taraxacum officinale aggr.")
+inexistent <- append(inexistent, "Rubus canescens")
+inexistent <- append(inexistent, "Odontites vernus")
+inexistent <- append(inexistent, "Woodsia alpina")
+inexistent <- append(inexistent, "Draba aizoides")
+inexistent <- append(inexistent, "Minuartia verna")
+inexistent <- append(inexistent, "Cerastium alpinum")
+inexistent <- append(inexistent, "Luzula multiflora")
+inexistent <- append(inexistent, "Veronica teucrium")
+inexistent <- append(inexistent, "Deschampsia cespitosa")
+inexistent <- append(inexistent, "Bromus benekenii")
+inexistent <- append(inexistent, "Brassica napus")
+inexistent <- append(inexistent, "Hypericum maculatum")
+inexistent <- append(inexistent, "Festuca altissima")
+inexistent <- append(inexistent, "Crepis foetida")
+inexistent <- append(inexistent, "Secale cereale")
+inexistent <- append(inexistent, "Sinapis alba")
+inexistent <- append(inexistent, "Ranunculus tuberosus aggr.") # maybe could be found
+inexistent <- append(inexistent, "Silene otites")
+inexistent <- append(inexistent, "Centaurea paniculata")
+inexistent <- append(inexistent, "Potentilla verna")
+inexistent <- append(inexistent, "Medicago sativa") # should be there
+inexistent <- append(inexistent, "Festuca valesiaca")
+inexistent <- append(inexistent, "Einjährig")
+inexistent <- append(inexistent, "Poaceae")
+inexistent <- append(inexistent, "Flache lange blätter")
+inexistent <- append(inexistent, "Apiaceae")
+inexistent <- append(inexistent, "A10")
+inexistent <- append(inexistent, "Keimling 1")
+inexistent <- append(inexistent, "Keimling 2")
+inexistent <- append(inexistent, "Pflanze")
+inexistent <- append(inexistent, "Asteraceae")
+inexistent <- append(inexistent, "Lamiaceae")
+inexistent <- append(inexistent, "Runde blätter")
+inexistent <- append(inexistent, "Caryophyllaceae")
+inexistent <- append(inexistent, "Ononis repens")
+inexistent <- append(inexistent, "Stachys byzantina")
+inexistent <- append(inexistent, "Centaurea valesiaca")
+inexistent <- append(inexistent, "Amelanchier humilis")
+
+species <- species[!species %in% inexistent]
+
+"Potentilla verna" %in% midolo_species_list$species
+midolo_species_list$species[startsWith(midolo_species_list$species, "Leontodon")]
+midolo_species_list$species[endsWith(midolo_species_list$species, " erecta")]
+sum(species %in% midolo_species_list$species)
+species[!(species %in% midolo_species_list$species)]
+```
+
+
+Map the leuk taxa to species in Euro+Med taxonomic backbone present in EIVE
+```{r}
+species <- unique_species
+
+# reference for replacements: https://powo.science.kew.org/
+replacements <- data.frame(old = character(), new = character())
+# removing aggr.
+replacements <- add_row(replacements, old = "Luzula sylvatica aggr.", new = "Luzula sylvatica")
+replacements <- add_row(replacements, old = "Hypochaeris uniflora aggr.", new = "Hypochaeris uniflora")
+replacements <- add_row(replacements, old = "Galium pumilum aggr.", new = "Galium pumilum")
+replacements <- add_row(replacements, old = "Hieracium sabaudum aggr.", new = "Hieracium sabaudum")
+replacements <- add_row(replacements, old = "Populus nigra aggr.", new = "Populus nigra")
+replacements <- add_row(replacements, old = "Ononis spinosa aggr.", new = "Ononis spinosa")
+replacements <- add_row(replacements, old = "Erysimum rhaeticum aggr.", new = "Erysimum rhaeticum")
+replacements <- add_row(replacements, old = "Alchemilla fissa aggr.", new = "Alchemilla fissa")
+replacements <- add_row(replacements, old = "Alchemilla glabra aggr.", new = "Alchemilla glabra")
+replacements <- add_row(replacements, old = "Hieracium villosum aggr.", new = "Hieracium villosum")
+replacements <- add_row(replacements, old = "Hieracium laevigatum aggr.", new = "Hieracium laevigatum")
+replacements <- add_row(replacements, old = "Festuca halleri aggr.", new = "Festuca halleri")
+replacements <- add_row(replacements, old = "Festuca valesiaca aggr.", new = "Festuca valesiaca")
+replacements <- add_row(replacements, old = "Hieracium glaucinum aggr.", new = "Hieracium glaucinum")
+
+# adding aggr.
+replacements <- add_row(replacements, old = "Dactylorhiza maculata subsp. fuchsii", new = "Dactylorhiza maculata aggr.")
+replacements <- add_row(replacements, old = "Elymus repens", new = "Elytrigia repens aggr.")
+replacements <- add_row(replacements, old = "Potentilla verna", new = "Potentilla verna aggr.")
+replacements <- add_row(replacements, old = "Sedum montanum", new = "Sedum rupestre aggr.")
+
+# removing subsp.
+replacements <- add_row(replacements, old = "Vaccinium gaultherioides", new = "Vaccinium uliginosum")
+replacements <- add_row(replacements, old = "Sagina apetala subsp. apetala", new = "Sagina apetala")
+replacements <- add_row(replacements, old = "Laserpitium gaudinii", new = "Laserpitium krapfii")
+replacements <- add_row(replacements, old = "Veronica prostrata subsp. prostrata", new = "Veronica prostrata")
+replacements <- add_row(replacements, old = "Viola canina subsp. montana", new = "Viola canina")
+
+# add subsp.
+
+# specializations
+replacements <- add_row(replacements, old = "Salix appendiculata / caprea", new = "Salix appendiculata")
+
+# bugfixes in Leuk data
+replacements <- add_row(replacements, old = "Vicia sativa L.", new = "Vicia sativa")
+
+# synonyms
+replacements <- add_row(replacements, old = "Chenopodium hybridum", new = "Chenopodiastrum hybridum")
+replacements <- add_row(replacements, old = "Hieracium pilosella", new = "Pilosella officinarum")
+replacements <- add_row(replacements, old = "Thlaspi perfoliatum", new = "Noccaea perfoliata")
+replacements <- add_row(replacements, old = "Acinos arvensis", new = "Clinopodium acinos")
+replacements <- add_row(replacements, old = "Silene pratensis", new = "Silene latifolia")
+replacements <- add_row(replacements, old = "Hieracium piloselloides", new = "Pilosella piloselloides")
+replacements <- add_row(replacements, old = "Anthemis tinctoria", new = "Cota tinctoria")
+replacements <- add_row(replacements, old = "Micropus erectus", new = "Bombycilaena erecta")
+replacements <- add_row(replacements, old = "Hieracium staticifolium", new = "Tolpis staticifolia")
+replacements <- add_row(replacements, old = "Arabis turrita", new = "Pseudoturritis turrita")
+replacements <- add_row(replacements, old = "Silene rupestris", new = "Atocion rupestre")
+replacements <- add_row(replacements, old = "Acinos alpinus", new = "Clinopodium alpinum")
+replacements <- add_row(replacements, old = "Hieracium lactucella", new = "Pilosella lactucella")
+replacements <- add_row(replacements, old = "Orchis ustulata", new = "Neotinea ustulata")
+replacements <- add_row(replacements, old = "Elymus hispidus", new = "Elytrigia intermedia")
+replacements <- add_row(replacements, old = "Gentiana campestris", new = "Gentianella campestris")
+replacements <- add_row(replacements, old = "Salix elaeagnos", new = "Salix eleagnos")
+replacements <- add_row(replacements, old = "Bromus inermis", new = "Bromopsis inermis")
+replacements <- add_row(replacements, old = "Lappula deflexa", new = "Hackelia deflexa")
+replacements <- add_row(replacements, old = "Cirsium acaule", new = "Cirsium acaulon")
+replacements <- add_row(replacements, old = "Festuca pratensis", new = "Schedonorus pratensis")
+replacements <- add_row(replacements, old = "Anchusa arvensis", new = "Lycopsis arvensis")
+replacements <- add_row(replacements, old = "Bromus sterilis", new = "Anisantha sterilis")
+replacements <- add_row(replacements, old = "Chaenorrhinum minus", new = "Microrrhinum minus")
+replacements <- add_row(replacements, old = "Helictotrichon pubescens", new = "Avenula pubescens")
+replacements <- add_row(replacements, old = "Conyza canadensis", new = "Erigeron canadensis")
+replacements <- add_row(replacements, old = "Bromus erectus", new = "Bromopsis erecta")
+replacements <- add_row(replacements, old = "Mycelis muralis", new = "Cicerbita muralis")
+replacements <- add_row(replacements, old = "Ranunculus tuberosus aggr.", new = "Ranunculus lanuginosus")
+replacements <- add_row(replacements, old = "Festuca arundinacea", new = "Schedonorus arundinaceus")
+replacements <- add_row(replacements, old = "Bromus benekenii", new = "Bromopsis benekenii")
+replacements <- add_row(replacements, old = "Veronica teucrium", new = "Veronica austriaca subsp. teucrium")
+replacements <- add_row(replacements, old = "Aster bellidiastrum", new = "Bellidiastrum michelii")
+replacements <- add_row(replacements, old = "Poa supina", new = "Ochlopoa supina")
+replacements <- add_row(replacements, old = "Nigritelle rhellicani", new = "Gymnadenia rhellicani")
+replacements <- add_row(replacements, old = "Leontodon helveticus", new = "Scorzoneroides helvetica")
+replacements <- add_row(replacements, old = "Rumex alpestris", new = "Rumex scutatus")
+replacements <- add_row(replacements, old = "Coeloglossum viride", new = "Dactylorhiza viridis")
+replacements <- add_row(replacements, old = "Taraxacum officinale aggr.", new = "Taraxacum sect. Taraxacum")
+replacements <- add_row(replacements, old = "Bromus riparius", new = "Bromopsis riparia")
+replacements <- add_row(replacements, old = "Populus ×canescens", new = "Populus _canescens")
+replacements <- add_row(replacements, old = "Bromus tectorum", new = "Anisantha tectorum")
+replacements <- add_row(replacements, old = "Bromus ramosus", new = "Brachypodium retusum")
+replacements <- add_row(replacements, old = "Hieracium cymosum", new = "Pilosella cymosa")
+replacements <- add_row(replacements, old = "Listera ovata", new = "Neottia ovata")
+replacements <- add_row(replacements, old = "Anemone narcissiflora", new = "Anemonastrum narcissiflorum")
+replacements <- add_row(replacements, old = "Festuca altissima", new = "Drymochloa sylvatica")
+replacements <- add_row(replacements, old = "Polygonum viviparum", new = "Bistorta vivipara")
+replacements <- add_row(replacements, old = "Plantago serpentina", new = "Plantago maritima subsp. serpentina")
+replacements <- add_row(replacements, old = "Rubus fruticosus aggr.", new = "Rubus plicatus") # questionable renaming
+replacements <- add_row(replacements, old = "Muscari comosum", new = "Leopoldia comosa")
+
+m <- match(replacements$old, species)
+species[m[!is.na(m)]] <- replacements$new[!is.na(m)]
+
+eive_taxa <- species
+eive_taxa[!(eive_taxa %in% eive_list$TaxonConcept)] <- NA
+
+species <- species[!species %in% mosses]
+
+inexistent <- species[endsWith(species, "spec.") | endsWith(species, "sp.")]
+inexistent <- append(inexistent, "Einjährig")
+inexistent <- append(inexistent, "Flache lange blätter")
+inexistent <- append(inexistent, "Poaceae")
+inexistent <- append(inexistent, "Lamiaceae")
+inexistent <- append(inexistent, "Apiaceae")
+inexistent <- append(inexistent, "Caryophyllaceae")
+inexistent <- append(inexistent, "Asteraceae")
+inexistent <- append(inexistent, "Runde blätter")
+inexistent <- append(inexistent, "A10")
+inexistent <- append(inexistent, "Keimling 1")
+inexistent <- append(inexistent, "Keimling 2")
+inexistent <- append(inexistent, "Pflanze")
+inexistent <- append(inexistent, "Amelanchier humilis")
+inexistent <- append(inexistent, "Ononis repens")
+
+species <- species[!species %in% inexistent]
+
+"Potentilla verna" %in% eive_list$TaxonConcept
+eive_list$TaxonConcept[startsWith(eive_list$TaxonConcept, "Rubus")]
+eive_list$TaxonConcept[endsWith(eive_list$TaxonConcept, "fruticosus")]
+sum(species %in% eive_list$TaxonConcept)
+species[!(species %in% eive_list$TaxonConcept)]
+length(species)
+```
+
+```{r}
+write_csv(data.frame(infoflora_taxon = unique_species, try_taxa = try_taxa, landolt_taxa = landolt_taxa, midolo_taxa = midolo_taxa, eive_taxa = eive_taxa), "../Daten/Intermediate/leuk_landolt_try_midolo_eive_taxon_conversion.csv")
+```
+

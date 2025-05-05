@@ -1,0 +1,87 @@
+---
+title: "rank_abundance_curve"
+format: html
+---
+
+## Generate the rank abundance curves
+
+
+Load the necessary libraries:
+
+```{r}
+library(readr)
+library(vegan)
+library(vegan3d)
+library(magrittr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(ggsci)
+library(gridExtra)
+# library(ggrepel)
+# library(ggforce)
+# library(readxl)
+library(ggpubr)
+library(BiodiversityR)
+
+library(seqtime)
+```
+
+
+Read in the vegetation data from the leuk fire sampling.
+```{r}
+raw_data <- read_delim("../Daten/Intermediate/combined_data.csv")
+raw_data <- raw_data[!is.na(raw_data$percentage200),] # we can only use data where the cover is present and afford dropping this single entry
+raw_data$year[raw_data$year == "climax"] <- 2203
+raw_data$year <- as.numeric(raw_data$year)
+raw_data$plotid <- raw_data$year*10000 + raw_data$global_id
+
+length(unique(raw_data$plotid))
+species_names <- unique(raw_data$`Species_unified_2004-23`)
+```
+
+Transform the data to create a species matrix, where every column contains a species and every row a plotid. The values indicate the cover of the species on the given plot id.
+```{r}
+transformed_data <- data.frame(plotid = unique(raw_data$plotid))
+transformed_data$year <- raw_data$year[match(transformed_data$plotid, raw_data$plotid)]
+transformed_data$elevation <- raw_data$elevation_m[match(transformed_data$plotid, raw_data$plotid)]
+
+for(species_name in species_names) {
+  column <- (raw_data |> 
+    group_by(plotid) |> 
+    summarise(cover = if(sum(percentage200[`Species_unified_2004-23` == species_name]) > 0) {
+      mean(percentage200[`Species_unified_2004-23` == species_name])
+    } else {
+      0
+    }))$cover
+  transformed_data[[species_name]] <- column
+}
+rownames(transformed_data) <- unique(raw_data$plotid)
+```
+
+Create a data frame with the plot ID and the year of the plot.
+```{r}
+transformed_data.env <- data.frame(
+  plotid = unique(raw_data$plotid), 
+  year = as.factor(raw_data$year[match(unique(raw_data$plotid), raw_data$plotid)]))
+```
+
+Create a data frame with the plot ID and the year of the plot. Pink is 2023 and each plot is a height band of 1/5th of the elevational gradient.
+```{r}
+elevations <- seq(
+  min(raw_data$elevation_m), 
+  max(raw_data$elevation_m), 
+  (max(raw_data$elevation_m) - min(raw_data$elevation_m))/3)
+
+
+for(i in 2:length(elevations)) {
+  rows_to_select <- transformed_data$elevation > elevations[i-1] & transformed_data$elevation <= elevations[i]
+  data_to_plot.env <- transformed_data.env[rows_to_select,]
+  data_to_plot <- transformed_data[rows_to_select, -c(1,2,3)]
+  
+  rankabuncomp(data_to_plot, y=data_to_plot.env, factor='year',
+      scale='logabun', legend=F, type = 's', specnames=c(1:5))
+}
+```
+
+

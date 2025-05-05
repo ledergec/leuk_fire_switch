@@ -1,0 +1,54 @@
+---
+title: "create_incidence_matrix"
+format: html
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+library(readr)
+library(dplyr)
+```
+
+Read in the vegetation data from the Leuk fire sampling. We only keep plots above 1700.
+
+```{r}
+raw_data <- read_delim("../Daten/Intermediate/combined_data.csv")
+raw_data <- raw_data[!is.na(raw_data$percentage200),] # we can only use data where the cover is present and afford dropping this single entry
+
+species_names <- unique(raw_data$`Species_unified_2004-23`)
+length(species_names)
+
+nrow(raw_data[raw_data$global_id == 681,])
+sum(raw_data$percentage200[raw_data$global_id == 681] > 0)
+```
+
+Transform the data to create a species matrix, where every column contains a species and every row a plotid. The values indicate the cover of the species on the given plot id.
+
+```{r}
+raw_data$year[raw_data$year == "climax"] <- 2178
+raw_data$year <- as.numeric(raw_data$year)
+raw_data$plotid <- raw_data$year*10000 + raw_data$global_id
+length(unique(raw_data$plotid))
+transformed_data <- data.frame(plotid = unique(raw_data$plotid))
+transformed_data$year <- raw_data$year[match(transformed_data$plotid, raw_data$plotid)]
+transformed_data$elevation <- raw_data$elevation_m[match(transformed_data$plotid, raw_data$plotid)]
+
+for(species_name in species_names) {
+  column <- (raw_data |> 
+    group_by(plotid) |> 
+    summarise(cover = if(sum(percentage200[`Species_unified_2004-23` == species_name]) > 0) {
+      mean(percentage200[`Species_unified_2004-23` == species_name])
+    } else {
+      0
+    }))
+  transformed_data[[species_name]] <- 0
+  transformed_data[[species_name]] <- column$cover[match(transformed_data$plotid, column$plotid)]
+}
+rownames(transformed_data) <- unique(raw_data$plotid)
+
+sum(transformed_data[transformed_data$plotid == 22030681,seq(4,ncol(transformed_data),1)] > 0)
+
+write_csv(x = transformed_data, file = "../Daten/Intermediate/incidence_matrix.csv")
+```

@@ -1,0 +1,394 @@
+---
+title: "Cleanup Vegetation Data"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+## Description
+
+Certain misidentification problems:
+Acinos arvensis vs alpinus
+Up to July: different Epipactis species
+Calamagrostis varia vs. Brachypodium rupestre vs. Brachypodium sylvaticum
+
+```{r}
+library(readr)
+library(stringr)
+library(dplyr)
+
+
+beobachtungen <- read_delim("../Daten/Leuk/Climax Daten 2024/Orig_InfoFlora_Beobachtungen.csv")
+length(unique(beobachtungen$releve_id))
+length(beobachtungen$releve_id)
+
+header <- read_delim("../Daten/Leuk/Climax Daten 2024/Orig_Header-Vegetations-Aufnahmen.csv")
+header$name <- as.numeric(header$name)
+
+assertthat::are_equal(61, length(unique(beobachtungen$releve_id)))
+
+replace_species_on_plot <- function(orig_name, new_name, plot_id, ignore_cf) {
+  data_with_global_plot_ids <- inner_join(header, beobachtungen, by = join_by(id == releve_id))
+  info_flora_id <- data_with_global_plot_ids$id[data_with_global_plot_ids$taxon_orig == orig_name & data_with_global_plot_ids$name == plot_id]
+  if(ignore_cf) {
+    info_flora_id <- data_with_global_plot_ids$id[str_replace_all(data_with_global_plot_ids$taxon_orig, "cf\\. ", "") == orig_name & data_with_global_plot_ids$name == plot_id]
+  }
+  if(is.na(info_flora_id)) {
+    message(paste("Could not find ", orig_name, " on plot ", plot_id, sep = ""))
+  }
+  
+  if(ignore_cf) {
+    beobachtungen$taxon_orig[str_replace_all(beobachtungen$taxon_orig, "cf\\. ", "") == orig_name & beobachtungen$releve_id == info_flora_id] <- new_name
+  } else {
+    beobachtungen$taxon_orig[beobachtungen$taxon_orig == orig_name & beobachtungen$releve_id == info_flora_id] <- new_name
+  }
+  beobachtungen
+}
+
+replace_species <- function(orig_name, new_name, ignore_cf) {
+  if(ignore_cf) {
+    beobachtungen$taxon_orig[str_replace_all(beobachtungen$taxon_orig, "cf\\. ", "") == orig_name] <- new_name
+  } else {
+    beobachtungen$taxon_orig[beobachtungen$taxon_orig == orig_name] <- new_name
+  }
+  beobachtungen
+}
+
+plot_numbers_of_species <- function(species_list) {
+  species_list <- unique(species_list)
+  data_with_global_plot_ids <- inner_join(header, beobachtungen, by = join_by(id == releve_id))
+
+  plots_containing_species <- 
+    data_with_global_plot_ids[data_with_global_plot_ids$taxon_orig %in% species_list,c("name", "taxon_orig")]
+  plots_containing_species[order(plots_containing_species$taxon_orig),]
+}
+
+global_id_to_releve_id <- function(global_id) {
+  data_with_global_plot_ids <- inner_join(header, beobachtungen, by = join_by(id == releve_id))
+  data_with_global_plot_ids$id[data_with_global_plot_ids$name == global_id][1]
+}
+
+add_species_to_plot <- function(taxon, global_id) {
+  releve_id <- global_id_to_releve_id(global_id)
+  subset <- beobachtungen[beobachtungen$releve_id == releve_id,]
+  row <- subset[1,]
+  row$taxon_orig <- taxon
+  row$cover <- 0.01
+  beobachtungen <- rbind(beobachtungen, row)
+  beobachtungen
+}
+
+# Fix naming of sp. to spec.
+beobachtungen$taxon_orig <- str_replace_all(beobachtungen$taxon_orig, " sp\\.", " spec.")
+
+# Re-identified at home or by memory...
+beobachtungen <- replace_species_on_plot("Carex frigida", "Luzula spicata", 191, T)
+beobachtungen <- replace_species_on_plot("Phleum phleoides", "Phleum hirsutum", 285, T)
+beobachtungen <- replace_species_on_plot("Bufonia paniculata", "Minuartia spec.", 769, T)
+beobachtungen <- replace_species_on_plot("Orlaya grandiflora", "Apiaceae", 702, T)
+beobachtungen <- replace_species("Viburnum opulus", "Acer campestre", T)
+
+# Presumably a typo while entering the data
+beobachtungen <- replace_species("Verbena officinalis", "Veronica officinalis", F)
+
+# Nachbestimmt durch Jürgen Dengler
+beobachtungen <- replace_species("Luzula pilosa", "Luzula luzulina", T)
+beobachtungen <- replace_species_on_plot("Festuca valesiaca aggr.", "Festuca ovina aggr.", 191, T)
+beobachtungen <- replace_species_on_plot("Koeleria pyramidata", "Koeleria marcantha", 222, T)
+beobachtungen <- replace_species_on_plot("Poa pratensis", "Poa alpina", 222, T)
+beobachtungen <- replace_species_on_plot("Poa annua", "Poa trivialis", 222, T)
+beobachtungen <- replace_species_on_plot("Avenella flexuosa", "Festuca rubra aggr.", 222, T)
+beobachtungen <- replace_species_on_plot("Agrostis capillaris", "Anthoxanthum odoratum", 227, T)
+beobachtungen <- replace_species_on_plot("Briza media", "Agrostis gigantea", 254, T)
+beobachtungen <- replace_species_on_plot("Poa annua", "Poa alpina", 260, T)
+beobachtungen <- replace_species_on_plot("Myosotis arvensis", "Myosotis cf. arvensis", 260, T)
+beobachtungen <- replace_species_on_plot("Polygonum viviparum", "Plantago serpentina aggr.", 285, T)
+beobachtungen <- replace_species_on_plot("Festuca pratensis", "Festuca rubra aggr.", 285, T)
+beobachtungen <- replace_species_on_plot("Poa annua", "Poa alpina", 285, T)
+beobachtungen <- replace_species_on_plot("Leontodon helveticus", "Leontodon hispidus", 285, T)
+beobachtungen <- replace_species_on_plot("Carex spec.", "Carex cf. ferruginea", 286, T)
+beobachtungen <- replace_species_on_plot("Brachypodium spec.", "Phleum hirsutum", 286, T)
+beobachtungen <- replace_species_on_plot("Avenella flexuosa", "Festuca rubra aggr.", 286, T)
+beobachtungen <- replace_species_on_plot("Viola canina subsp. montana", "Viola cf. riviniana", 314, T)
+beobachtungen <- replace_species_on_plot("Festuca rubra", "Festuca ovina aggr.", 314, T)
+beobachtungen <- replace_species_on_plot("Myosotis arvensis", "Myosotis cf. sylvatica", 325, T)
+beobachtungen <- replace_species_on_plot("Dryopteris spec.", "Dryopteris carthusiana", 325, T)
+beobachtungen <- replace_species_on_plot("Festuca valesiaca aggr.", "Festuca ovina aggr.", 326, T)
+beobachtungen <- add_species_to_plot("Sesleria caerulea", 326)
+beobachtungen <- replace_species_on_plot("Saponaria ocymoides", "Eudicot spec.", 357, T)
+beobachtungen <- replace_species_on_plot("Festuca valesiaca", "Festuca ovina aggr.", 357, T)
+beobachtungen <- replace_species_on_plot("Galium megalospermum", "Galium cf. tricornutum", 358, T)
+beobachtungen <- replace_species_on_plot("Galium spec.", "Galium cf. tricornutum", 378, T)
+beobachtungen <- replace_species_on_plot("Viola spec.", "Viola cf. riviniana", 378, T)
+beobachtungen <- replace_species_on_plot("Festuca violacea aggr.", "Festuca ovina aggr.", 390, T)
+beobachtungen <- replace_species_on_plot("Poaceae", "Poa nemoralis", 455, T)
+beobachtungen <- replace_species_on_plot("Poa pratensis", "Poa pratensis aggr.", 487, T)
+beobachtungen <- replace_species_on_plot("Viola reichenbachiana", "Viola cf. reichenbachiana", 542, T)
+beobachtungen <- replace_species_on_plot("Ranunculus spec.", "Ranunculus tuberosus", 542, T)
+beobachtungen <- replace_species_on_plot("Pimpinella saxifraga", "Pimpinella nigra", 553, T)
+beobachtungen <- replace_species_on_plot("Festuca ovina aggr.", "Festuca heterophylla", 574, T)
+beobachtungen <- replace_species_on_plot("Galium rubrum aggr.", "Galium cf. tricornutum", 574, T)
+beobachtungen <- replace_species_on_plot("Ranunculus spec.", "Ranunculus cf. tuberosus", 574, T)
+beobachtungen <- replace_species_on_plot("Viola reichenbachiana", "Viola cf. riviniana", 574, T)
+beobachtungen <- replace_species_on_plot("Festuca rubra", "Festuca heterophylla", 586, T)
+beobachtungen <- replace_species_on_plot("Arabis hirsuta", "Arabis ciliata", 607, T)
+beobachtungen <- add_species_to_plot("Phyteuma cf. betonicifolium", 607)
+beobachtungen <- add_species_to_plot("Verbascum thapsus", 607)
+beobachtungen <- replace_species_on_plot("Galium spec.", "Galium verum", 637, T)
+beobachtungen <- replace_species_on_plot("Hieracium murorum aggr.", "Hieracium pictum", 637, T)
+beobachtungen <- replace_species_on_plot("Solanum dulcamara", "Gehölz unbekannt", 637, T)
+beobachtungen <- replace_species_on_plot("Lonicera xylosteum", "df. Veronica chamaedrys", 639, T)
+beobachtungen <- replace_species_on_plot("Galium rubrum", "Galium verum", 702, T)
+beobachtungen <- replace_species_on_plot("Apiaceae", "Daucus carota", 702, T)
+beobachtungen <- replace_species_on_plot("Cirsium arvense", "Carduus nutans", 702, T)
+beobachtungen <- replace_species_on_plot("Carlina acaulis", "Carduus nutans", 702, T)
+beobachtungen <- replace_species_on_plot("Pimpinella saxifraga", "Pimpinella nigra", 702, T)
+beobachtungen <- replace_species_on_plot("Pimpinella saxifraga", "Pimpinella nigra", 712, T)
+beobachtungen <- replace_species_on_plot("Pyrola spec.", "Orthilia secunda", 745, T)
+beobachtungen <- replace_species_on_plot("Pimpinella saxifraga", "Pimpinella nigra", 745, T)
+beobachtungen <- replace_species_on_plot("Briza media", "Phleum phleoides", 769, T)
+beobachtungen <- replace_species_on_plot("Poa bulbosa", "Poa molinerii", 769, T) # Poa perconcinna...
+# these two species should be joined for all species in the data set
+beobachtungen <- replace_species_on_plot("Potentilla verna", "Potentilla pusilla", 769, T)
+beobachtungen <- replace_species_on_plot("Cirsium vulgare", "Carduus nutans", 769, T)
+beobachtungen <- replace_species_on_plot("Pimpinella saxifraga", "Pimpinella nigra", 769, T)
+beobachtungen <- replace_species_on_plot("Pimpinella saxifraga", "Pimpinella nigra", 778, T)
+beobachtungen <- replace_species_on_plot("Festuca valesiaca aggr.", "Stipa pennata aggr.", 802, T)
+beobachtungen <- replace_species_on_plot("Elymus repens", "Elymus hispidus", 802, T)
+beobachtungen <- replace_species_on_plot("Muscari comosum", "Muscari spec.", 802, T)
+
+View(beobachtungen[startsWith(beobachtungen$taxon_orig, "Galium"),])
+plot_numbers_of_species("Luzula pilosa")
+species <- beobachtungen[beobachtungen$releve_id == global_id_to_releve_id(802),]
+species$taxon_orig[startsWith(species$taxon_orig, "Mus")]
+
+
+# this has been confirmed
+beobachtungen <- replace_species_on_plot("Pulmonaria mollis", "Pulmonaria mollis", 315, T)
+
+# TODO...
+
+# Spit out all plots with plants which have some sort of a "cf." associated
+plot_numbers_of_species(beobachtungen$taxon_orig[beobachtungen$determinavit_cf == "CF"])
+
+# beobachtungen$taxon_orig <- str_replace_all(beobachtungen$taxon_orig, " cf\\. ", " ")
+# beobachtungen$taxon_orig <- str_replace_all(beobachtungen$taxon_orig, "cf\\. ", "")
+
+# Replace plant names which were definitively used differently on the fire patch
+beobachtungen <- replace_species("Lotus corniculatus", "Lotus corniculatus aggr.", F)
+beobachtungen <- replace_species("Thymus spec.", "Thymus serpyllum aggr.", T)
+beobachtungen <- replace_species("Sorbus aria", "Sorbus aria aggr.", F)
+beobachtungen <- replace_species("Salix appendiculata", "Salix appendiculata / caprea", F)
+beobachtungen <- replace_species("Salix caprea", "Salix appendiculata / caprea", F)
+beobachtungen <- replace_species("Papaver dubium subsp. dubium", "Papaver dubium", F)
+beobachtungen <- replace_species("Erysimum rhaeticum", "Erysimum rhaeticum aggr.", F)
+beobachtungen <- replace_species("Stipa eriocaulis", "Stipa pennata aggr.", F)
+beobachtungen <- replace_species("Festuca rubra", "Festuca rubra aggr.", F)
+beobachtungen <- replace_species("Ranunculus tuberosus", "Ranunculus tuberosus aggr.", F)
+beobachtungen <- replace_species("Knautia dipsacifolia", "Knautia spec.", F)
+beobachtungen <- replace_species("Knautia arvensis", "Knautia spec.", F)
+beobachtungen <- replace_species("Scabiosa columbaria", "Scabiosa columbaria subsp. columbaria", F)
+beobachtungen <- replace_species("Artemisia campestris aggr.", "Artemisia campestris", F)
+beobachtungen <- replace_species("Galium anisophyllon", "Galium pumilum aggr.", T)
+beobachtungen <- replace_species("Galium pumilum", "Galium pumilum aggr.", T)
+beobachtungen <- replace_species("Arabis hirsuta", "Arabis hirsuta aggr.", F)
+beobachtungen <- replace_species("Carlina vulgaris", "Carlina vulgaris aggr.", F)
+beobachtungen <- replace_species("Crataegus monogyna", "Crataegus monogyna aggr.", F)
+beobachtungen <- replace_species("Aconitum lycoctonum subsp. neapolitanum", "Aconitum lycoctonum", F)
+beobachtungen <- replace_species("Dactylorhiza maculata", "Dactylorhiza maculata subsp. fuchsii", F)
+beobachtungen <- replace_species("Leontodon hispidus subsp. hispidus", "Leontodon hispidus", F)
+beobachtungen <- replace_species("Achillea millefolium", "Achillea millefolium aggr.", F)
+beobachtungen <- replace_species("Epipactis helleborine", "Epipactis helleborine aggr.", F)
+beobachtungen <- replace_species("Phleum pratense", "Phleum pratense aggr.", F)
+beobachtungen <- replace_species("Arenaria serpyllifolia", "Arenaria serpyllifolia aggr.", F)
+beobachtungen <- replace_species("Euphrasia rostkoviana", "Euphrasia rostkoviana subsp. rostkoviana", F)
+beobachtungen <- replace_species("Ononis spinosa", "Ononis spinosa aggr.", F)
+beobachtungen <- replace_species("Myosotis sylvatica", "Myosotis sylvatica aggr.", F)
+beobachtungen <- replace_species("Pulmonaria mollis", "Pulmonaria australis", T)
+beobachtungen <- replace_species("Poa pratensis", "Poa pratensis aggr.", T)
+beobachtungen <- replace_species("Festuca laevigata", "Festuca ovina aggr.", F)
+beobachtungen <- replace_species("Chaerophyllum hirsutum", "Chaerophyllum hirsutum aggr.", F)
+beobachtungen <- replace_species("Luzula sylvatica", "Luzula sylvatica aggr.", F)
+beobachtungen <- replace_species("Anthoxanthum odoratum", "Anthoxanthum odoratum aggr.", F)
+beobachtungen <- replace_species("Ranunculus montanus", "Ranunculus montanus aggr.", F)
+beobachtungen <- replace_species("Festuca violacea", "Festuca violacea aggr.", F)
+beobachtungen <- replace_species("Hieracium pilosum", "Hieracium villosum aggr.", F)
+beobachtungen <- replace_species("Galium rubrum", "Galium rubrum aggr.", F)
+beobachtungen <- replace_species("Poa angustifolia", "Poa pratensis aggr.", T)
+beobachtungen <- replace_species("Festuca valesiaca aggr.", "Festuca ovina aggr.", T)
+
+
+# Uncertain whether these renaimings are correct...
+# beobachtungen <- replace_species("Petrorhagia saxifraga", "Petrorhagia prolifera", F)
+beobachtungen <- replace_species("cf. Epipactis atrorubens", "Epipactis spec.", F)
+beobachtungen <- replace_species("cf. Epipactis helleborine", "Epipactis spec.", F)
+beobachtungen <- replace_species("Pyrola minor", "Pyrola spec.", F)
+beobachtungen <- replace_species("Pyrola media", "Pyrola spec.", F)
+
+
+length(unique(beobachtungen$taxon_orig))
+
+main <- read_csv("../Daten/Leuk/Erste Daten von Tom/data_2004_2023_main.csv")
+mosses <- read_csv("../Daten/Leuk/Hand Curated/moss_taxa.csv")
+main <- main[!(main$`Species_unified_2004-23` %in% mosses$moss_taxa),]
+length(unique(main$`Species_unified_2004-23`))
+
+complete_list <- unique(append(main$`Species_unified_2004-23`, beobachtungen$taxon_orig))
+length(complete_list)
+
+all_taxa <- data.frame(taxon = complete_list)
+all_taxa$'On Fire Patch' <- complete_list %in% main$`Species_unified_2004-23`
+all_taxa$'Beside Fire Patch' <- complete_list %in% beobachtungen$taxon_orig
+
+
+# All species which are believed to be only on the surrounding plots and not on the fire patch.
+verified_as_plausible <- c(
+  "Asplenium adiantum-nigrum",
+  "Hypochaeris maculata",
+  "Hieracium glaucinum aggr.",
+  "Muscari comosum",
+  "Calamagrostis spec.",
+  "Medicago falcata",
+  "Angelica sylvestris",
+  "Paris quadrifolia",
+  "Galium rotundifolium",
+  "Centaurea valesiaca",
+  "Asteraceae",
+  "Ajuga reptans",
+  "Viola canina subsp. montana",
+  "Silene dioica",
+  "Viola odorata",
+  "Orobanche minor",
+  "Astrantia major",
+  "Aegopodium podagraria",
+  "Poa bulbosa",
+  "Luzula nivea",
+  "Sorbus chamaemespilus",
+  "Pinus mugo",
+  "Koeleria pyramidata",
+  "Goodyera repens",
+  "Adenostyles alliariae",
+  "Cerastium fontanum",
+  "Cerastium arvense",
+  "Ononis repens",
+  "Amelanchier humilis", # Neophyte
+  "Moneses uniflora",
+  "Campanula rhomboidalis",
+  "Stachys byzantina",
+  "Luzula spicata",
+  "Phleum hirsutum",
+  "Vicia sativa",
+  "Petrorhagia saxifraga",
+  "Leontodon crispus" #suspicious but bag with proofs cannot be found
+)
+
+# Compute the average species richness
+mean((beobachtungen |> group_by(releve_id) |> summarise(n = length(unique(taxon_orig))))$n)
+```
+
+Clean up the remarks column and add a1 and a10 column
+```{r}
+beobachtungen$rem[beobachtungen$rem == "A19"] <- "A10"
+beobachtungen$rem[beobachtungen$rem == "S10"] <- "A10"
+beobachtungen$rem[beobachtungen$rem == "Drüsig behaart"] <- NA
+
+beobachtungen$a1 <- 0 + (beobachtungen$rem == "A1")
+beobachtungen$a1[is.na(beobachtungen$a1)] <- 0
+beobachtungen$a10 <- (beobachtungen$rem == "A10" | beobachtungen$rem == "A1")
+beobachtungen$a10[is.na(beobachtungen$a10)] <- 0
+beobachtungen$b1 <- NA
+beobachtungen$b10 <- NA
+beobachtungen$c1 <- NA
+beobachtungen$c10 <- NA
+beobachtungen$d1 <- NA
+beobachtungen$d10 <- NA
+```
+
+Join with header data
+```{r}
+x_min <- 2614000.0000
+x_max <- 2618000.0000
+y_min <- 1129000.0000
+y_max <- 1133000.0000
+
+header <- read_delim("../Daten/Leuk/Climax Daten 2024/Orig_Header-Vegetations-Aufnahmen.csv")
+header <- header[c("id", "name", "trees_height", "trees_cover", "bushes_height", "bushes_cover", "herbaceous_height", "herbaceous_cover", "moss_cover")]
+names(header)[2] <- "global_id"
+
+all_data <- full_join(beobachtungen, header, join_by(releve_id == id))
+```
+
+Add x and y coordinates:
+```{r}
+all_data$coordX <- (all_data$global_id - 1) %% 33 * 125 + x_min - 2000000
+all_data$coordY <- y_max - 1000000 - floor((all_data$global_id - 1) / 33) * 125
+```
+
+Add altitude, aspect and slope:
+```{r}
+raster <- read_delim("../Daten/Intermediate/slope_and_aspect.csv")
+all_data <- inner_join(all_data, raster, join_by(global_id == global_id))
+```
+
+
+```{r}
+names(all_data)
+all_data$plot_no <- NA
+all_data$year <- "climax"
+all_data <- all_data[c("global_id", "plot_no", "year", "coordX", "coordY", "altitude", "taxon_orig", "supplements.releve_stratum", "supplements.cover_abs", "a1", "a10", "b1", "b10", "c1", "c10", "d1", "d10")]
+```
+
+Add Bodentiefe to the data
+```{r}
+bodentiefen <- read_delim("../Daten/Leuk/Climax Daten 2024/climax_bodentiefen.csv")
+means <- rowMeans(bodentiefen[-1])
+medians <- apply(bodentiefen[-1], 1, median)
+bodentiefen <- data.frame(plotid = bodentiefen$PlotID, bodentiefemittel04 = means, bodentiefemedian04 = medians)
+
+all_data <- full_join(all_data, bodentiefen, join_by(global_id == plotid))
+```
+
+Adjust column naming and remove columns to match combined data
+```{r}
+names(all_data)
+names(all_data)[names(all_data) == "altitude"] = c("elevation_m")
+names(all_data)[names(all_data) == "supplements.releve_stratum"] = c("layer")
+names(all_data)[names(all_data) == "supplements.cover_abs"] = c("percentage200")
+names(all_data)[names(all_data) == "taxon_orig"] = c("Species_unified_2004-23")
+all_data$distancewald_korr <- NA
+all_data$aschemittel04 <- NA
+all_data$aschemedian04 <- NA
+all_data <- all_data[,c("global_id", "plot_no", "year", "coordX", "coordY", "elevation_m", "Species_unified_2004-23", "layer", "percentage200", "a1", "a10", "b1", "b10", "c1", "c10", "d1", "d10", "distancewald_korr", "aschemittel04", "aschemedian04", "bodentiefemittel04", "bodentiefemedian04")]
+```
+
+Clean up the layers
+```{r}
+all_data$layer[all_data$layer == "ψ"] <- "♃" # Fix Moosschicht to Krautschicht for a single Achillea millefolium aggr.
+
+all_data$layer[all_data$layer == "Y"] <- 1 # Baumschicht
+all_data$layer[all_data$layer == "v"] <- 2 # Strauchschicht
+all_data$layer[all_data$layer == "♃"] <- 3 # Krautschicht
+
+all_data$layer[is.na(all_data$layer) & all_data$`Species_unified_2004-23` == "Juniperus communis"] <- 3
+all_data$layer[is.na(all_data$layer) & all_data$`Species_unified_2004-23` == "Adenostyles alliariae"] <- 3
+all_data$layer[is.na(all_data$layer) & all_data$`Species_unified_2004-23` == "Poa alpina"] <- 3
+all_data$layer[is.na(all_data$layer) & all_data$`Species_unified_2004-23` == "Paris quadrifolia"] <- 3
+all_data$layer[is.na(all_data$layer) & all_data$`Species_unified_2004-23` == "Muscari cf. comosum"] <- 3
+all_data$layer[is.na(all_data$layer) & all_data$`Species_unified_2004-23` == "Pimpinella cf. nigra"] <- 3
+all_data$layer[is.na(all_data$layer) & all_data$`Species_unified_2004-23` == "Arabis hirsuta aggr."] <- 3
+all_data$layer[is.na(all_data$layer) & all_data$`Species_unified_2004-23` == "Cotoneaster cf. tomentosus"] <- 3
+all_data$layer[is.na(all_data$layer) & all_data$`Species_unified_2004-23` == "Ononis pusilla"] <- 3
+all_data$layer[is.na(all_data$layer) & all_data$`Species_unified_2004-23` == "Carex montana"] <- 3
+all_data$layer[is.na(all_data$layer) & all_data$`Species_unified_2004-23` == "Pflanze"] <- 3
+all_data$layer[is.na(all_data$layer) & all_data$`Species_unified_2004-23` == "Brachypodium cf. rupestre"] <- 3
+all_data$layer[is.na(all_data$layer) & all_data$`Species_unified_2004-23` == "Hieracium cf. pilosella"] <- 3
+all_data$layer[is.na(all_data$layer) & all_data$`Species_unified_2004-23` == "Polypodium vulgare"] <- 3
+all_data$layer[is.na(all_data$layer) & all_data$`Species_unified_2004-23` == "Thymus serpyllum aggr."] <- 3
+
+unique(all_data$`Species_unified_2004-23`[is.na(all_data$layer)])
+```
+
+Write data to file:
+```{r}
+write_csv(all_data, "../Daten/Intermediate/cleaned_climax_data.csv")
+```

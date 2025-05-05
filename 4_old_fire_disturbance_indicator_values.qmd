@@ -1,0 +1,681 @@
+---
+title: "disturbance_indicator_values"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+Load the necessary libraries:
+
+```{r}
+library(readr)
+library(eHOF)
+library(magrittr)
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(stringi)
+library(ggplot2)
+library(ggpubr)
+```
+
+Read in the vegetation data from the Leuk fire sampling:
+```{r}
+raw_data <- read_delim("../Daten/Intermediate/combined_data.csv")
+raw_data$year[raw_data$year == "climax"] <- 2178 # treat climax data as being 200 years after the fire
+raw_data$year <- as.numeric(raw_data$year)
+raw_data <- raw_data[!endsWith(raw_data$`Species_unified_2004-23`, " spec."),]
+
+raw_data$plotid <- raw_data$year * 1000 + raw_data$global_id
+
+mosses <- read_csv("../Daten/Intermediate/moss_taxa.csv")
+raw_data <- raw_data[!(raw_data$`Species_unified_2004-23` %in% mosses$moss_taxa),]
+
+species_names <- unique(raw_data$`Species_unified_2004-23`)
+```
+
+Transform the data to create a species matrix, where every column contains a species and every row a plotid. 0 indicates that the species is absent on the plot of a given row. 1 indicates it is present.
+```{r}
+transformed_data <- data.frame(plotid = unique(raw_data$plotid))
+
+min_number_of_plots_containing_species <- 20 # only compute the graphic for species which occur on at least 20 plots
+for(i in 1:length(species_names)) {
+  species_name <- species_names[i]
+  column <- (raw_data |> 
+    group_by(plotid) |> 
+    summarise(presence = sum(sum(`Species_unified_2004-23` == species_name) > 0)))$presence
+  if(sum(column==1) >= min_number_of_plots_containing_species && sum(column==0) >= min_number_of_plots_containing_species) {
+    transformed_data[[species_name]] <- column
+  }
+}
+number_of_species_which_occur_in_min_number_of_plots <- length(colnames(transformed_data))
+number_of_species_which_occur_in_min_number_of_plots
+```
+
+Create a vector containing the log10(number of years) since the fire. We take the logarithm because the sampling is more dense closely after the fire and because it will be hard to give the climax the correct time. 100 years, 200 years, 400 years? When taking the logarithm this does not make a huge difference.
+```{r}
+log_year_of_plot <- log10(raw_data$year[match(unique(raw_data$plotid), raw_data$plotid)] - 2003)
+```
+
+We use extended hoffman model implementation. We exclude the double hump shaped models VI and VII because they seem ecologically nonsensical in this context. At least there seems no reason to assume, that a given plant may suffer more competition at a mid successional stage than at the beginning or end. For this model exclusion to work we need to bootstrap. Then the species matrix and log10(year) gradient are provided as prepared above:
+```{r}
+mo <- HOF(# TODO, there is a weirdness in the implementation of this function that modeltypes only has an effect if bootstrapping -> contact Florian Jansen?
+  transformed_data[,!(names(transformed_data) %in% c("plotid"))], 
+  log_year_of_plot, 
+  M=1, 
+  modeltypes = eHOF.modelnames[1:5]) # we only allow ecologically sensible models and exclude camel shaped models
+```
+
+Save and or load the hof model computed above to save time.
+```{r}
+saveRDS(mo, file  = "../Daten/Intermediate/hof_models.RDS")
+mo <- readRDS("../Daten/Intermediate/hof_models.RDS")
+```
+
+We transform the results from the HOF call above into a more easily usable table and store this to file for future plotting. Furthermore, we generate plots with 32 images each. 
+```{r}
+summary <- data.frame(species_name = character(),  
+                      model = character(), 
+                      optimum = numeric(), 
+                      start_opt = numeric(), 
+                      end_opt = numeric(), 
+                      iv = numeric(),
+                      successional = factor(),
+                      number_of_occurrences = numeric())
+
+for(species_name in names(transformed_data)[2:ncol(transformed_data)]) {
+#  species_name <- "Origanum vulgare"
+  species_model <- eval(parse(text = paste("mo$`", species_name, "`", sep = "")))
+  params <- Para(species_model)
+  model_number <- params$model
+  optimum <- params$opt
+  expect <- params$expect
+  
+  successional <- NA
+  if(model_number == "I") {
+    successional <- "constant"
+  } else if(model_number == "II" | model_number == "III") {
+    if(params$para[2] < 0) {
+      successional <- "increasing"
+    } else {
+      successional <- "decreasing"
+    }
+  } else if(model_number == "IV" | model_number == "V") {
+    successional <- "unimodal"
+  }
+  
+  number_of_occurrences <- sum(transformed_data[[species_name]])
+  
+  if(model_number == "III") {# in case of model III we store the lower and upper bound on the optimum
+    summary <- add_row(summary, 
+                       species_name = species_name, 
+                       model = model_number, 
+                       start_opt = optimum[1],
+                       end_opt = optimum[2], 
+                       iv = -expect,
+                       successional = successional,
+                       number_of_occurrences = number_of_occurrences)
+  } else {# for all other models allowed there is a single optimum
+    summary <- add_row(summary, 
+                       species_name = species_name, 
+                       model = model_number, 
+                       optimum = optimum, 
+                       iv = -expect,
+                       successional = successional,
+                       number_of_occurrences = number_of_occurrences)
+  }
+}
+
+summary <- summary[order(summary$species_name),]
+summary$iv <- round(summary$iv,2)
+
+tmp <- summary[,c("species_name", "model", "iv", "number_of_occurrences")]
+names(tmp) <- c("Taxon", "Model", "FDIV", "# Plot / Year combinations")
+write_csv(tmp, "../Daten/Results/Disturbance Indicator Values/FDIV.csv")
+write_csv(summary, "../Daten/Results/Disturbance Indicator Values/hoffman_results.csv")
+```
+
+We read back the stored results and analyse which model has been fitted how often.
+```{r}
+summary <- read_csv("../Daten/Results/Disturbance Indicator Values/hoffman_results.csv")
+length(summary$model)
+sum(summary$model == "I") # 35
+sum(summary$model == "II" & summary$successional == "decreasing") # 4
+sum(summary$model == "II" & summary$successional == "increasing") # 76
+sum(summary$model == "III" & summary$successional == "decreasing") # 6
+sum(summary$model == "III" & summary$successional == "increasing") # 18
+sum(summary$model == "IV") # 93
+sum(summary$model == "V") # 76
+sum(summary$model == "VI")
+sum(summary$model == "VII")
+
+dev.new()
+boxplot(summary$iv)
+plot(summary$iv)
+sum(!is.na(summary$optimum) & (summary$successional == "unimodal"))
+```
+
+Find most frequent species of each type:
+```{r}
+find_frequent_species <- function(model_type, successional = "") {
+  species_with_model <- summary[summary$model == model_type,]
+  if(successional != "") {
+    species_with_model <- summary[summary$model == model_type & summary$successional == successional,]
+  }
+  species_with_model <- species_with_model[order(species_with_model$number_of_occurrences, decreasing = T),]
+  return(species_with_model[1:min(10, nrow(species_with_model)),])
+}
+
+frequent_species_names_of_each_model <- c(
+  find_frequent_species("I")$species_name[1],
+  find_frequent_species("II", successional = "decreasing")$species_name[1],
+  find_frequent_species("II", successional = "increasing")$species_name[1],
+  find_frequent_species("III", successional = "decreasing")$species_name[1],
+  find_frequent_species("III", successional = "increasing")$species_name[1],
+  find_frequent_species("IV")$species_name[1],
+  find_frequent_species("IV")$species_name[2],
+  find_frequent_species("V")$species_name[1],
+  find_frequent_species("V")$species_name[2])
+
+plot_species_name <- function(species_name, xlab, ylab, size = 2.5) {
+  species_model <- eval(parse(text = paste("mo$`", species_name, "`", sep = "")))
+  fx <- seq(-log10(175),2*log10(175),0.01)
+  fy <- predict(species_model, Para(species_model)$model, fx)
+  
+  x <- c()
+  y <- c()
+  for(year in c(2004,2005,2006,2007,2013,2023,2178)) {
+    subset <- transformed_data[floor(transformed_data$plotid / 1000) == year,]
+    x <- append(x, log10(year-2003))
+    y <- append(y, sum(subset[[species_name]])/nrow(subset))
+  }
+
+  n_observations <- sum(transformed_data[[species_name]])
+  
+  data <- data.frame(x = fx, y = fy)
+  p <- ggplot(data, aes(x = x, y = y)) +
+    geom_line() + 
+    ylim(0,1) + 
+    xlim(-log10(175), 2*log10(175)) +
+    geom_point(data = data.frame(x = x, y = y), color = 'blue') +
+    theme_classic() + 
+    ggtitle(species_name) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    annotate("text", x=-log10(175) + 0.1, y=0.7, label= paste("Model ", Para(species_model)$model, "\nn = ", n_observations, sep = ""), hjust = 0, size = size) +
+    geom_vline(xintercept = Para(species_model)$expect, linetype="dotted", color = "darkgray", size=0.5)
+  
+  if(xlab) {
+    p <- p + scale_x_continuous("year since fire", breaks = c(log10(1), log10(2), log10(3), log10(4), log10(10), log10(20), log10(175)), labels = c("1", "2", "", "4", "", "20", "climax"))
+  } else {
+    p <- p + scale_x_continuous("year since fire", breaks = c(log10(1), log10(2), log10(3), log10(4), log10(10), log10(20), log10(175)), labels = c("1", "2", "", "4", "", "20", "climax"))
+    p <- p + theme(axis.title.x = element_blank())
+  }
+  if(ylab) {
+    p <- p + ylab("Probability")
+  } else {
+    p <- p + theme(axis.title.y = element_blank())
+  }
+  p
+  return(p)
+}
+
+text_size <- 3
+p <- ggarrange(plot_species_name(frequent_species_names_of_each_model[1], F, T, size = text_size),
+          plot_species_name(frequent_species_names_of_each_model[2], F, F, size = text_size),
+          plot_species_name(frequent_species_names_of_each_model[3], F, F, size = text_size),
+          plot_species_name(frequent_species_names_of_each_model[4], F, T, size = text_size),
+          plot_species_name(frequent_species_names_of_each_model[5], F, F, size = text_size),
+          plot_species_name(frequent_species_names_of_each_model[6], F, F, size = text_size),
+          plot_species_name(frequent_species_names_of_each_model[7], T, T, size = text_size),
+          plot_species_name(frequent_species_names_of_each_model[8], T, F, size = text_size),
+          plot_species_name(frequent_species_names_of_each_model[9], T, F, size = text_size)
+          )
+ggsave("../Daten/Results/Disturbance Indicator Values/response_curves_frequent_species.png", p, width = 3000, height = 1600, units = "px")
+
+sort(unique(raw_data$`Species_unified_2004-23`))
+
+p <- ggarrange(
+          plot_species_name("Betula pendula", F, T, size = text_size),
+          plot_species_name("Populus tremula", F, F, size = text_size),
+          plot_species_name("Salix appendiculata / caprea", F, F, size = text_size),
+          plot_species_name("Populus alba", F, F, size = text_size),
+          plot_species_name("Quercus pubescens", F, T, size = text_size),
+          plot_species_name("Picea abies", F, F, size = text_size),
+          plot_species_name("Larix decidua", F, F, size = text_size),
+          plot_species_name("Pinus sylvestris", F, F, size = text_size),
+          plot_species_name("Corylus avellana", F, T, size = text_size),
+          plot_species_name("Juniperus communis", F, F, size = text_size),
+          plot_species_name("Rubus idaeus", F, F, size = text_size),
+          plot_species_name("Rubus fruticosus aggr. s.l.", F, F, size = text_size),
+          plot_species_name("Sonchus asper", F, T, size = text_size),
+          plot_species_name("Senecio vulgaris", F, F, size = text_size),
+          plot_species_name("Conyza canadensis", F, F, size = text_size),
+          plot_species_name("Blitum virgatum", F, F, size = text_size),
+          plot_species_name("Daucus carota", F, T, size = text_size),
+          plot_species_name("Cirsium vulgare", F, F, size = text_size),
+          plot_species_name("Cirsium arvense", F, F, size = text_size),
+          plot_species_name("Tragopogon dubius", F, F, size = text_size),
+          plot_species_name("Brachypodium rupestre", F, T, size = text_size),
+          plot_species_name("Carex ornithopoda", F, F, size = text_size),
+          plot_species_name("Fragaria vesca", F, F, size = text_size),
+          plot_species_name("Hieracium murorum aggr.", F, F, size = text_size),
+          plot_species_name("Urtica dioica", F, T, size = text_size),
+          plot_species_name("Solanum dulcamara", F, F, size = text_size),
+          ncol = 4,
+          nrow = 7
+          )
+ggsave("../Daten/Results/Disturbance Indicator Values/all_interesting.png", p, width = 3000, height = 3200, units = "px")
+
+p <- ggarrange(
+          plot_species_name("Betula pendula", F, T, size = text_size),
+          plot_species_name("Populus tremula", F, F, size = text_size),
+          plot_species_name("Quercus pubescens", F, F, size = text_size),
+          plot_species_name("Picea abies", F, F, size = text_size),
+          plot_species_name("Corylus avellana", F, T, size = text_size),
+          plot_species_name("Rubus fruticosus aggr. s.l.", F, F, size = text_size),
+          plot_species_name("Conyza canadensis", F, F, size = text_size),
+          plot_species_name("Blitum virgatum", F, F, size = text_size),
+          plot_species_name("Cirsium vulgare", F, T, size = text_size),
+          plot_species_name("Tragopogon dubius", F, F, size = text_size),
+          plot_species_name("Urtica dioica", F, F, size = text_size),
+          plot_species_name("Solanum dulcamara", F, F, size = text_size),
+          plot_species_name("Brachypodium rupestre", T, T, size = text_size),
+          plot_species_name("Carex ornithopoda", T, F, size = text_size),
+          plot_species_name("Hieracium murorum aggr.", T, F, size = text_size),
+          plot_species_name("Fragaria vesca", T, F, size = text_size),
+          ncol = 4,
+          nrow = 4
+          )
+ggsave("../Daten/Results/Disturbance Indicator Values/half_interesting.png", p, width = 3000, height = 1600, units = "px")
+```
+
+Generate all plots of all species for supplemental materials.
+
+```{r}
+summary <- summary[order(summary$species_name),]
+
+block_size = 32
+
+for(j in 1:floor(length(summary$species_name)/block_size)) {
+  p <- ggarrange(plot_species_name(summary$species_name[(j-1)*block_size + 1], F, T),
+            plot_species_name(summary$species_name[(j-1)*block_size + 2], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 3], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 4], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 5], F, T),
+            plot_species_name(summary$species_name[(j-1)*block_size + 6], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 7], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 8], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 9], F, T),
+            plot_species_name(summary$species_name[(j-1)*block_size + 10], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 11], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 12], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 13], F, T),
+            plot_species_name(summary$species_name[(j-1)*block_size + 14], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 15], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 16], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 17], F, T),
+            plot_species_name(summary$species_name[(j-1)*block_size + 18], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 19], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 20], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 21], F, T),
+            plot_species_name(summary$species_name[(j-1)*block_size + 22], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 23], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 24], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 25], F, T),
+            plot_species_name(summary$species_name[(j-1)*block_size + 26], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 27], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 28], F, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 29], T, T),
+            plot_species_name(summary$species_name[(j-1)*block_size + 30], T, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 31], T, F),
+            plot_species_name(summary$species_name[(j-1)*block_size + 32], T, F),
+            ncol = 4,
+            nrow = 8
+          )
+  ggsave(paste("../Daten/Results/Disturbance Indicator Values/response_curves_", j, ".png", sep = ""), p, width = 3000, height = 4200, units = "px")
+}
+
+# j <- 10
+# p <- ggarrange(plot_species_name(summary$species_name[(j-1)*block_size + 1], T, T),
+#                plot_species_name(summary$species_name[(j-1)*block_size + 2], T, F),
+#                plot_species_name(summary$species_name[(j-1)*block_size + 3], T, F),
+#                plot_species_name(summary$species_name[(j-1)*block_size + 4], T, F),
+#                plot_species_name(summary$species_name[(j-1)*block_size + 5], T, T),
+#                ncol = 4,
+#                nrow = 2
+# )
+# ggsave(paste("../Daten/Results/Disturbance Indicator Values/response_curves_frequent_species_", j, ".png", sep = ""), p, width = 3000, height = 1050, units = "px")
+
+```
+
+Since the optimum is not for all curves clear, we choose to use another measure for the disturbance value: it's expected value. That is, the x value under the curve. The expected value is computed in the range min(x) - (max(x) - min(x)), max(x) + (max(x) - min(x)). The function used is the predicted response curve. See at the following code at the bottom of:
+https://github.com/cran/eHOF/blob/master/R/Para.opt.r
+  if(model %in% c('I', 'II', 'III', 'IV', 'V')) {
+		expect <- sum(pred * x)/sum(pred)
+	}
+	
+According to https://cran.r-project.org/web/packages/eHOF/vignettes/eHOF.pdf it would also be possible to take cover into account. However, they recommend transforming the cover by sqrt.
+
+```{r}
+div <- read_delim("../Daten/Disturbance Indicator Values/disturbance_indicator_values.csv", ",")
+
+par(mfrow = c(1,1))
+boxplot(div$Disturbance.Severity)
+boxplot(div$Disturbance.Frequency)
+
+# Add matching to midolo taxonomy
+taxon_conversions <- read_csv("../Daten/Intermediate/leuk_landolt_try_midolo_eive_taxon_conversion.csv")
+summary <- left_join(summary, taxon_conversions, join_by(species_name == infoflora_taxon))
+
+# Add midolo values on top
+summary <- left_join(summary, div, join_by(midolo_taxa == species))
+
+parse_em <- function(str) {
+  str[str_count(str, "-") == 1] <- as.character((as.numeric(stri_extract(str[str_count(str, "-") == 1], regex =  "[0-9]+")) + as.numeric(stri_extract(str[str_count(str, "-") == 1], regex =  "[0-9]+$")))/2)
+  
+  return(as.numeric(str))
+}
+
+parse_mowing_tolerance <- function(str) {
+  str[str == "-"] <- "0";
+  result <- as.numeric(str)
+  result[result == 0] <- NA
+  return(result)
+}
+
+landolt_data <- read.csv("../Daten/Landolt/2023-03-29_FI-export_Stefan_Widmer.csv")
+
+landolt_data$Competition <- str_count(landolt_data$KS, "c")
+landolt_data$Stress <- str_count(landolt_data$KS, "s")
+landolt_data$Ruderalness <- str_count(landolt_data$KS, "r")
+landolt_data$EM <- parse_em(landolt_data$EM)
+landolt_data$MV <- parse_mowing_tolerance(landolt_data$MV)
+colnames(landolt_data)
+
+summary <- left_join(summary, landolt_data, join_by(landolt_taxa == Taxon))
+
+length(summary$Disturbance.Frequency)
+sum(is.na(summary$Disturbance.Frequency))
+colnames(summary)
+correlation_expect_with_midolo <- 
+  cor(summary[!is.na(summary$Disturbance.Severity),
+              c("iv", "Disturbance.Frequency", "Disturbance.Severity", "Disturbance.Frequency.herblayer",
+                "Disturbance.Severity.herblayer", "Mowing.Frequency", "Grazing.Pressure", "Soil.Disturbance")])
+
+write_csv(as.data.frame(correlation_expect_with_midolo), 
+          "../Daten/Results/Disturbance Indicator Values/correlation_hof_expect_with_midolo.csv")
+
+correlation_expect_with_landolt <- 
+  cor(summary[!is.na(summary$Competition),c("iv", "Competition", "Stress", "Ruderalness", "EM", "MV")], use="complete.obs")
+
+write_csv(as.data.frame(correlation_expect_with_landolt), 
+          "../Daten/Results/Disturbance Indicator Values/correlation_hof_expect_with_landolt.csv")
+```
+
+To compute the correlation with slh we need to work with the TRY database:
+```{r}
+try_data <- read.delim("../Daten/TRY/36239_25092024162731/36239.csv", sep = "\t", encoding = 'Latin-1')
+
+try_data <- try_data[!is.na(try_data$SpeciesName),] # remove all empty rows
+try_data <- try_data[!(startsWith(try_data$OrigValueStr,"\xa0") | 
+                         startsWith(try_data$OrigValueStr,"<") | 
+                         try_data$OrigValueStr == "." |
+                         try_data$OrigValueStr == "na" |
+                         try_data$OrigValueStr == "herb" |
+                         endsWith(try_data$OrigValueStr,"*") |
+                         endsWith(try_data$OrigValueStr,"m") |
+                         endsWith(try_data$OrigValueStr,"ft") |
+                         grepl("-", try_data$OrigValueStr) |
+                         grepl("/", try_data$OrigValueStr) |
+                         grepl("]", try_data$OrigValueStr) |
+                         try_data$OrigValueStr == ""),] # remove all funky characters
+
+select_dry_seed_mass <- try_data$TraitID == 26
+select_dry_seed_mass[is.na(select_dry_seed_mass)] <- FALSE
+select_sla_with_peticole <- try_data$TraitID == 3116
+select_sla_with_peticole[is.na(select_sla_with_peticole)] <- FALSE
+select_sla_peticole_undef <- try_data$TraitID == 3117
+select_sla_peticole_undef[is.na(select_sla_peticole_undef)] <- FALSE
+select_canopy_height <- try_data$TraitID == 3106
+select_canopy_height[is.na(select_canopy_height)] <- FALSE
+
+remove_seed_weight_outliers <- function(values) {
+  return(values[values < 3*11490])
+}
+
+seed_mass_conversion = data.frame(unit = c("mg", "g / 1000 seeds", "micro gx10", "g ?", "mg per seed", "1/pound", "mg/100", "(mg)", "1/kg", "g", "g/1000", "mg/1000", "mg/100 seeds", "mg/seed", "g/100 seeds"), conversion_factor = c(1, 1, NA, NA, 1, NA, 1/100, 1, NA, 1000, 1, 1/1000, 1/100, 1, 10))
+write_csv(seed_mass_conversion, "../Daten/Intermediate/seed_mass_conversion.csv")
+
+seed_mass <- try_data[select_dry_seed_mass,] |> 
+  group_by(AccSpeciesName) |>
+  summarise(
+    dry_seed_mass_mg = 
+      log10(mean(remove_seed_weight_outliers(
+        as.numeric(OrigValueStr)*seed_mass_conversion$conversion_factor[match(OrigUnitStr,seed_mass_conversion$unit)]),
+        na.rm = TRUE))
+  )
+
+summary <- left_join(
+  summary, 
+  seed_mass, 
+  join_by(try_taxa == AccSpeciesName))
+
+sla_conversion = data.frame(
+  unit = c("cm2/g", "mm2/mg", "mm2 / mg", "m2/kg", "m\xb2 Kg-1", "m\xb2/kg", "m2 kg-1", "m2/kg leaf DM", "mm2/g", "mm2 mg-1", "mm2 g-1", "g m-2", "(m\xb2 kg-1)", "mm2*mg-1", "g/m2", "g/cm2", "mm\xb2/mg", "cm2/g (n.r.)", "mm^2/mg", "gDM m-2", "cm2 g-1", "mm2mg-1", "cm2 / g", "m2/g", "mm2  mg-1", "cm2 mg-1" ),
+  conversion_factor = c(1, 10, 10, 10, 10, 10, 10, 10, NA, 10, 0.01, NA, 10, 10, NA, NA, 10, 1, 10, NA, 1, 10, 1, 10000, 10, 1000))
+
+sla <- try_data[select_sla_with_peticole,] |> 
+  group_by(AccSpeciesName) |>
+  summarise(
+    sla_cm2_per_mg = 
+      log10(mean(
+        as.numeric(OrigValueStr)*sla_conversion$conversion_factor[match(OrigUnitStr,sla_conversion$unit)],
+        na.rm = TRUE))
+  )
+
+summary <- left_join(
+  summary, 
+  sla, 
+  join_by(try_taxa == AccSpeciesName))
+
+canopy_height_conversion = data.frame(
+  unit = c("cm", "m", "mm", "feet", "(cm)", " cm", " m ", "Cm"),
+  conversion_factor = c(0.01, 1, 0.001, 0.3048, 0.01, 0.01, 1, 0.01))
+
+canopy_height <- try_data[select_canopy_height,] |> 
+  group_by(AccSpeciesName) |>
+  summarise(
+    canopy_height_m = 
+      log10(mean(
+        as.numeric(OrigValueStr)*canopy_height_conversion$conversion_factor[match(OrigUnitStr,canopy_height_conversion$unit)],
+        na.rm = TRUE))
+  )
+
+summary <- left_join(
+  summary, 
+  canopy_height, 
+  join_by(try_taxa == AccSpeciesName))
+
+correlation_expect_with_dry_seed_mass <- 
+  cor(summary$dry_seed_mass_mg[!is.na(summary$dry_seed_mass_mg)], summary$iv[!is.na(summary$dry_seed_mass_mg)])
+correlation_expect_with_dry_seed_mass
+correlation_expect_with_sla <- 
+  cor(summary$sla_cm2_per_mg[!is.na(summary$sla_cm2_per_mg)], summary$iv[!is.na(summary$sla_cm2_per_mg)])
+correlation_expect_with_sla
+correlation_expect_with_canopy_height <- 
+  cor(summary$canopy_height_m[!is.na(summary$canopy_height_m)], summary$iv[!is.na(summary$canopy_height_m)])
+correlation_expect_with_canopy_height
+
+write_csv(summary, "../Daten/Intermediate/fire_disturbance_aggregated_data.csv")
+```
+
+Try to do the same with optimum:
+```{r}
+summary <- summary[summary$successional == "unimodal",]
+
+correlation_expect_with_midolo <- 
+  cor(summary[!is.na(summary$Disturbance.Severity),
+              c("optimum", "Disturbance.Frequency", "Disturbance.Severity", "Disturbance.Frequency.herblayer",
+                "Disturbance.Severity.herblayer", "Mowing.Frequency", "Grazing.Pressure", "Soil.Disturbance")])
+correlation_expect_with_midolo
+
+correlation_expect_with_landolt <- 
+  cor(summary[!is.na(summary$Competition),c("optimum", "Competition", "Stress", "Ruderalness", "EM", "MV")], use="complete.obs")
+correlation_expect_with_landolt
+
+correlation_expect_with_dry_seed_mass <- 
+  cor(summary$dry_seed_mass_mg[!is.na(summary$dry_seed_mass_mg)], summary$optimum[!is.na(summary$dry_seed_mass_mg)])
+correlation_expect_with_dry_seed_mass
+correlation_expect_with_sla <- 
+  cor(summary$sla_cm2_per_mg[!is.na(summary$sla_cm2_per_mg)], summary$optimum[!is.na(summary$sla_cm2_per_mg)])
+correlation_expect_with_sla
+correlation_expect_with_canopy_height <- 
+  cor(summary$canopy_height_m[!is.na(summary$canopy_height_m)], summary$optimum[!is.na(summary$canopy_height_m)])
+correlation_expect_with_canopy_height
+```
+
+
+Benchmark whether the mean iv is well correlated with log(year since fire):
+```{r}
+data <- read_csv("../Daten/Intermediate/combined_data.csv")
+aggregated_data <- left_join(data, summary, join_by(`Species_unified_2004-23` == species_name))
+aggregated_data <- aggregated_data[,c("Species_unified_2004-23", "global_id", "year", "percentage200", "iv", "Disturbance.Severity", "Disturbance.Frequency", "Disturbance.Severity.herblayer", "Disturbance.Frequency.herblayer", "Mowing.Frequency", "Grazing.Pressure", "Soil.Disturbance", "Competition", "Stress", "Ruderalness", "EM", "MV", "dry_seed_mass_mg", "sla_cm2_per_mg", "canopy_height_m")]
+aggregated_data$iv <- as.numeric(aggregated_data$iv)
+
+compute_weighted_mean <- function(species, cover, numerical_value) {
+  df <- data.frame(species, cover, numerical_value)
+  temp <- df |>
+    group_by(species) |>
+    summarise(
+      cover = 1 - prod(1-cover/100), # probabilistic layer combination as proposed by Hagen S. Fischer
+      value = mean(numerical_value, na.rm = TRUE)
+    )
+  temp <- temp[!is.na(temp$value),]
+  return(sum(temp$value*temp$cover, na.rm = T)/sum(temp$cover, na.rm = T))
+}
+
+aggregated_data <- aggregated_data |> 
+  group_by(global_id, year) |>
+  summarise(
+    mean_iv = mean(iv, na.rm = T),
+    mean_disturbance_frequency = mean(Disturbance.Frequency, na.rm = T),
+    mean_disturbance_severity = mean(Disturbance.Severity, na.rm = T),
+    mean_frequency_herblayer = mean(Disturbance.Frequency.herblayer, na.rm = T),
+    mean_severity_herblayer = mean(Disturbance.Severity.herblayer, na.rm = T),
+    mean_mowing_frequency = mean(Mowing.Frequency, na.rm = T),
+    mean_grazing_pressure = mean(Grazing.Pressure, na.rm = T),
+    mean_soil_disturbance = mean(Soil.Disturbance, na.rm = T),
+    mean_competition = mean(Competition, na.rm = T),
+    mean_stress = mean(Stress, na.rm = T),
+    mean_ruderalness = mean(Ruderalness, na.rm = T),
+    mean_hemeroby = mean(EM, na.rm = T),
+    mean_mowing_resistance = mean(MV, na.rm = T),
+    mean_dry_seed_mass = compute_weighted_mean(`Species_unified_2004-23`, percentage200, dry_seed_mass_mg),
+    mean_sla = compute_weighted_mean(`Species_unified_2004-23`, percentage200, sla_cm2_per_mg),
+    mean_canopy_height = compute_weighted_mean(`Species_unified_2004-23`, percentage200, canopy_height_m))
+
+aggregated_data$year[aggregated_data$year == "climax"] <- 2178
+aggregated_data$year <- as.numeric(aggregated_data$year)
+aggregated_data$log_year_since_fire <- log10(aggregated_data$year - 2003)
+
+aggregated_data <- aggregated_data[!is.na(aggregated_data$mean_dry_seed_mass),]
+aggregated_data <- aggregated_data[!is.na(aggregated_data$mean_mowing_resistance),]
+
+benchmark_results <- round(cor(aggregated_data[,c("log_year_since_fire", "mean_iv", "mean_disturbance_frequency", "mean_disturbance_severity", "mean_frequency_herblayer", "mean_severity_herblayer", "mean_mowing_frequency", "mean_grazing_pressure", "mean_soil_disturbance", "mean_competition", "mean_stress", "mean_ruderalness", "mean_hemeroby", "mean_mowing_resistance", "mean_dry_seed_mass", "mean_sla", "mean_canopy_height")]), 2)
+write_csv(as.data.frame(benchmark_results), "../Daten/Results/Disturbance Indicator Values/benchmark_results.csv")
+
+p_iv <- ggplot(data = aggregated_data, aes(x=log(aggregated_data$year-2003), y=mean_iv)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  xlab("log10(year since fire)") +
+  ylab("mean FDIV") +
+  theme_classic()
+
+p_sd <- ggplot(data = aggregated_data, aes(x=log(aggregated_data$year-2003), y=mean_soil_disturbance)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  xlab("log10(year since fire)") +
+  ylab("mean Soil Disturbance") +
+  theme_classic()
+
+p_sh <- ggplot(data = aggregated_data, aes(x=log(aggregated_data$year-2003), y=mean_severity_herblayer)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  xlab("log10(year since fire)") +
+  ylab("mean Herblayer Severity") +
+  theme_classic()
+
+p_h <- ggplot(data = aggregated_data, aes(x=log(aggregated_data$year-2003), y=mean_hemeroby)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  xlab("log10(year since fire)") +
+  ylab("mean Hemeroby") +
+  theme_classic()
+
+joined_plot <- ggarrange(p_iv, p_sd, p_sh, p_h)
+```
+
+
+```{r}
+summary <- read_csv("../Daten/Intermediate/fire_disturbance_aggregated_data.csv")
+
+normalize <- function(vector) {
+  return ((vector - min(vector, na.rm = T))*10 / (max(vector, na.rm = T) - min(vector, na.rm = T)))
+}
+
+summary$iv <- normalize(summary$iv)
+summary$Disturbance.Frequency <- normalize(summary$Disturbance.Frequency)
+summary$Disturbance.Severity <- normalize(summary$Disturbance.Severity)
+summary$Soil.Disturbance <- normalize(summary$Soil.Disturbance)
+summary$Mowing.Frequency <- normalize(summary$Mowing.Frequency)
+summary$Grazing.Pressure <- normalize(summary$Grazing.Pressure)
+summary$EM <- normalize(summary$EM)
+summary$MV <- normalize(summary$MV)
+summary$Competition <- normalize(summary$Competition)
+summary$Stress <- normalize(summary$Stress)
+summary$Ruderalness <- normalize(summary$Ruderalness)
+summary$dry_seed_mass_mg <- normalize(summary$dry_seed_mass_mg)
+summary$sla_cm2_per_mg <- normalize(summary$sla_cm2_per_mg)
+summary$canopy_height_m <- normalize(summary$canopy_height_m)
+summary <- summary[!is.na(summary$Soil.Disturbance),]
+
+diff <- summary$iv - summary$Soil.Disturbance
+which(diff == max(diff, na.rm = T))
+summary[14,]$species_name
+order(diff)
+
+diff[order(diff)]
+summary[order(diff),]$species_name
+summary[order(diff),]$Soil.Disturbance
+summary[order(diff),]$iv
+
+index <- 13
+diff[index]
+summary[index,]$species_name
+summary[index,]$Soil.Disturbance
+summary[index,]$iv
+
+summary[order(summary$Soil.Disturbance),]$species_name
+
+ggplot(summary, aes(x = Soil.Disturbance, y = iv)) +
+  geom_point()
+
+temp <- summary[,c("species_name", "iv", "Disturbance.Frequency", "Disturbance.Severity", "Soil.Disturbance", "Mowing.Frequency", "Grazing.Pressure", "EM", "MV")]
+temp <- pivot_longer(temp, c( "iv", "Disturbance.Frequency", "Disturbance.Severity", "Soil.Disturbance", "Mowing.Frequency", "Grazing.Pressure", "EM", "MV"))
+
+temp |>
+  ggplot(aes(x = value, colour = name, na.rm = T)) + 
+    geom_density() 
+
+temp <- summary[,c("species_name", "iv", "Competition", "Stress", "Ruderalness", "dry_seed_mass_mg", "sla_cm2_per_mg", "canopy_height_m")]
+temp <- pivot_longer(temp, c( "iv", "Competition", "Stress", "Ruderalness", "dry_seed_mass_mg", "sla_cm2_per_mg", "canopy_height_m"))
+
+temp |>
+  ggplot(aes(x = value, colour = name, na.rm = T)) + 
+    geom_density() 
+
+which(temp$value == max(temp$value, na.rm = T))
+temp[1020, ]
+nrow(summary)
+```
+

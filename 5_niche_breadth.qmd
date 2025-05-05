@@ -1,0 +1,264 @@
+---
+title: "niche_breadth"
+format: html
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+library(readr)
+library(dplyr)
+library(agricolae)
+library(lme4)
+library(multcomp)
+library(visreg)
+library(ggplot2)
+library(ggpubr)
+```
+
+Read in the vegetation data from the Leuk fire sampling. We only keep plots above 1700.
+
+```{r}
+transformed_data <- read_delim("../Daten/Intermediate/incidence_matrix.csv")
+
+mean_indicator_values <- read_delim("../Daten/Intermediate/mean_indicator_values.csv")
+mean_indicator_values$year[mean_indicator_values$year == "climax"] <- 2178
+mean_indicator_values$year <- as.numeric(mean_indicator_values$year)
+mean_indicator_values$plotid <- mean_indicator_values$year*10000 + mean_indicator_values$global_id
+mean_indicator_values[mean_indicator_values$global_id == 477,]
+
+full_data <- right_join(mean_indicator_values[,-which(names(mean_indicator_values) %in% c("year", "elevation"))], transformed_data, join_by(plotid))
+names(full_data)
+n_species <- ncol(transformed_data) - 3
+species_columns <- append(rep(F, ncol(full_data) - n_species), rep(T, n_species))
+```
+
+# Include ecospat niche breadth code
+
+The code was found on this page: https://rdrr.io/cran/ecospat/src/R/ecospat.nichePOSNB.R.
+
+```{r}
+ecospat.nichePOSNB <- function(df,colvar,colfreq){
+  
+  #require(Hmisc)
+  
+  if (any(!is.numeric(colvar),colvar==0,is.null(colvar),!colvar%in%1:ncol(df))) stop("colvar should point to relevant columns in df corresponding to environmental axes")
+  if (any(!is.numeric(colfreq),colfreq==0,is.null(colfreq),!colfreq%in%1:ncol(df))) stop("colfreq should point to relevant columns in df corresponding to taxa frequencies")
+  
+  var<-data.frame(df[,colvar])
+  freq<-data.frame(df[,colfreq])
+  
+  POSNB<-matrix(nrow=ncol(freq),ncol=(length(colvar)*2))
+  row.names(POSNB)<-colnames(freq)
+  colnames(POSNB)<- c(paste0(rep(colnames(df)[colvar],2),rep(c("_pos","_nb"),each=length(colvar))))
+  
+  for (i in 1:ncol(freq)){
+    freq.i<-freq[,i]
+    freq.i<-(freq.i-min(freq.i))/(max(freq.i)-min(freq.i))
+    rangevar<-1:length(colvar)
+    for (j in rangevar){
+      POSNB[i,j]<- Hmisc::wtd.mean(var[,j],freq.i)
+      POSNB[i,j+length(colvar)] <- sqrt(Hmisc::wtd.var(var[,j],freq.i))
+    }
+  }
+  return(POSNB)
+}
+
+ecospat.nicheNBmean<-function(POSNB,w=NULL){
+  if(ncol(POSNB)==2) stop("POSNB should have more than one axis")
+  NB<-POSNB[,(ncol(POSNB)/2+1):ncol(POSNB)]
+  if(is.null(w)) w<-rep(1/ncol(NB),ncol(NB))
+  if (!is.null(w)&length(w)!=ncol(NB)) stop("w should have the same length as the number of axes in POSNB")
+  NBmean<-NB%*%w/sum(w)
+  colnames(NBmean)<-"NBmean"
+  return(NBmean)
+}
+```
+
+```{r}
+sum(full_data[full_data$plotid == 21780681, species_columns] > 0)
+
+get_column_selection <- function(min_number_of_plots) {
+  col_sel_2004 <- colSums(full_data[full_data$year == 2004, species_columns] > 0) > min_number_of_plots
+  col_sel_2005 <- colSums(full_data[full_data$year == 2005, species_columns] > 0) > min_number_of_plots
+  col_sel_2006 <- colSums(full_data[full_data$year == 2006, species_columns] > 0) > min_number_of_plots
+  col_sel_2007 <- colSums(full_data[full_data$year == 2007, species_columns] > 0) > min_number_of_plots
+  col_sel_2013 <- colSums(full_data[full_data$year == 2013, species_columns] > 0) > min_number_of_plots
+  col_sel_2023 <- colSums(full_data[full_data$year == 2023, species_columns] > 0) > min_number_of_plots
+  col_sel_climax <- colSums(full_data[full_data$year == 2178, species_columns] > 0) > min_number_of_plots
+  
+  column_selection <- col_sel_2004 & col_sel_2005 & col_sel_2006 & col_sel_2007 & col_sel_2013 & col_sel_2023 & col_sel_climax
+  return(column_selection)
+}
+
+column_selection <- get_column_selection(10)
+ncol(full_data)
+length(column_selection)
+n_selected_species <- sum(column_selection)
+
+column_selection <- append(rep(T,ncol(full_data) - length(column_selection)), column_selection)
+
+col_names <- c("EIVEresM", "EIVEresN", "EIVEresR", "EIVEresL", "EIVEresT", "elevation")
+
+results <- data.frame(year = character(), taxon = character(), EIVEresM_pos = numeric(), EIVEresN_pos = numeric(), EIVEresR_pos = numeric(), EIVEresL_pos = numeric(), EIVEresT_pos = numeric(), elevation_pos = numeric(), EIVEresM_nb = numeric(), EIVEresN_nb = numeric(), EIVEresR_nb = numeric(), EIVEresL_nb = numeric(), EIVEresT_nb = numeric(), elevation_nb = numeric())
+
+for(year in unique(transformed_data$year)) {
+  selection <- full_data[full_data$year == year, column_selection]
+  spec_cols <- seq(ncol(selection) - n_selected_species + 1, ncol(selection),1)
+  niche_breadths <- ecospat.nichePOSNB(selection, which(names(full_data) %in% col_names), spec_cols)
+  niche_breadths <- as.data.frame(niche_breadths)
+  
+  for(i in spec_cols) {
+    col_name <- names(selection)[i]
+    selection[selection[,i] > 0,i] <- full_data[[col_name]][full_data$year == year][selection[,i] > 0]
+    selection[selection[,i] == 0,i] <- NA
+  }
+
+  names(niche_breadths)
+  results <- add_row(
+    results, 
+    year = rep(as.character(year), n_selected_species), 
+    taxon = rownames(niche_breadths),
+    EIVEresM_pos = niche_breadths$EIVEresM_pos,
+    EIVEresN_pos = niche_breadths$EIVEresN_pos,
+    EIVEresR_pos = niche_breadths$EIVEresR_pos,
+    EIVEresL_pos = niche_breadths$EIVEresL_pos,
+    EIVEresT_pos = niche_breadths$EIVEresT_pos,
+    elevation_pos = niche_breadths$elevation_pos,
+    EIVEresM_nb = niche_breadths$EIVEresM_nb,
+    EIVEresN_nb = niche_breadths$EIVEresN_nb,
+    EIVEresR_nb = niche_breadths$EIVEresR_nb,
+    EIVEresL_nb = niche_breadths$EIVEresL_nb,
+    EIVEresT_nb = niche_breadths$EIVEresT_nb,
+    elevation_nb = niche_breadths$elevation_nb
+    )
+
+}
+
+results$taxon <- gsub("\\.\\.\\.", " / ", results$taxon)
+results$taxon <- gsub("spec ", "spec.", gsub("aggr ", "aggr.", gsub("\\.", " ", results$taxon)))
+results$year[results$year == 2178] <- "climax"
+results$year <- as.factor(results$year)
+results$taxon <- as.factor(results$taxon)
+results$niche_volume <- log10(results$EIVEresM_nb*results$EIVEresN_nb*results$EIVEresR_nb*results$EIVEresL_nb*results$EIVEresT_nb)
+results$EIVEresM_nb <- log10(results$EIVEresM_nb)
+results$EIVEresN_nb <- log10(results$EIVEresN_nb)
+results$EIVEresR_nb <- log10(results$EIVEresR_nb)
+results$EIVEresL_nb <- log10(results$EIVEresL_nb)
+results$EIVEresT_nb <- log10(results$EIVEresT_nb)
+
+model <- aov(niche_volume ~ year, data = results)
+# plot(model)
+summary(model)
+TukeyHSD(model)
+
+column_name <- "EIVEresM_nb"
+create_plot <- function(column_name, ylab, title) {
+  species_to_be_labeled <- get_column_selection(30)
+  species_to_be_labeled[species_to_be_labeled]
+  species_to_be_labeled <- append(rep(F,ncol(full_data) - length(species_to_be_labeled)), species_to_be_labeled)
+  species_to_be_labeled <- names(full_data)[species_to_be_labeled]
+  selected_rows <- results$taxon %in% species_to_be_labeled
+  
+  column <- sym(column_name)
+  p <- ggplot(data = results[selected_rows, ], aes(x = year, y = !!column, colour = taxon, group = taxon, label = taxon)) +
+    geom_point() +
+    geom_line() + 
+    theme_classic() +
+    ylab(ylab) +
+    xlab("Year") +
+    ggtitle(title) +
+    labs(colour = "Plant Species") + 
+    theme(plot.title = element_text(hjust = 0.5))
+  return(p)
+}
+
+p_m <- create_plot("EIVEresM_nb", "log10(Niche Breadth M)", "Niche Breadth Evolution of Moisture")
+p_n <- create_plot("EIVEresN_nb", "log10(Niche Breadth N)", "Niche Breadth Evolution of Nutrients")
+p_r <- create_plot("EIVEresR_nb", "log10(Niche Breadth R)", "Niche Breadth Evolution of Reaction")
+p_l <- create_plot("EIVEresL_nb", "log10(Niche Breadth L)", "Niche Breadth Evolution of Light")
+p_t <- create_plot("EIVEresT_nb", "log10(Niche Breadth T)", "Niche Breadth Evolution of Temperature")
+
+model <- lmer(niche_volume ~ year + (1|taxon), data=results)
+plot(model)
+s <- summary(glht(model, linfct = mcp(year = "Tukey")))
+p_val <- s$test$pvalues[21]
+p_val
+
+# p <- visreg(model, "year", xlab = "Year", ylab = "log10(Niche Volume)", gg=T)
+# p <- p + theme_classic()
+# p <- p + ggtitle("Niche Volume") + theme(plot.title = element_text(hjust = 0.5))
+# p
+
+p <- 
+  ggplot(results, aes(x = year, y = niche_volume, group = year)) +
+  geom_boxplot() +
+  theme_classic() +
+  xlab("Year") +
+  ylab("log10(Niche Volume)") +
+  ggtitle("Niche Volume") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+niche_breadth_plot <- ggarrange(p_m, p_n, p_r, p_l, p_t, p, ncol = 2, nrow = 3, common.legend = T, legend = "right")
+ggsave("../Daten/Results/Successional Dynamics/niche_breadth.png", niche_breadth_plot, width = 3000, height = 3200, units = "px")
+
+p_m <- create_plot("EIVEresM_pos", "Niche Position M", "Niche Position Evolution of Moisture")
+p_n <- create_plot("EIVEresN_pos", "Niche Position N", "Niche Position Evolution of Nutrients")
+p_r <- create_plot("EIVEresR_pos", "Niche Position R", "Niche Position Evolution of Reaction")
+p_l <- create_plot("EIVEresL_pos", "Niche Position L", "Niche Position Evolution of Light")
+p_t <- create_plot("EIVEresT_pos", "Niche Position T", "Niche Position Evolution of Temperature")
+
+niche_position_plot <- ggarrange(p_m, p_n, p_r, p_l, p_t, ncol = 2, nrow = 3, common.legend = T, legend = "right")
+
+ggsave("../Daten/Results/Successional Dynamics/niche_position.png", niche_position_plot, width = 3000, height = 3200, units = "px")
+
+
+model <- lmer(elevation_nb ~ year + (1|taxon), data=results)
+
+s <- summary(glht(model, linfct = mcp(year = "Tukey")))
+p_val <- s$test$pvalues[21]
+
+p <- visreg(model, "year", xlab = "Year", ylab = "Niche Breadth", gg=T)
+p <- p + theme_classic()
+p <- p + ggtitle("Niche Breadth for Elevation") + theme(plot.title = element_text(hjust = 0.5))
+p
+
+model <- lmer(niche_volume ~ year + (1|taxon), data=results)
+
+s <- summary(glht(model, linfct = mcp(year = "Tukey")))
+p_val <- s$test$pvalues[21]
+
+p <- visreg(model, "year", xlab = "Year", ylab = "log10(Niche Volume)", gg=T)
+p <- p + theme_classic()
+p <- p + ggtitle("Niche Volume") + theme(plot.title = element_text(hjust = 0.5))
+p
+
+
+results
+sum(is.na(results$niche_breadth))
+
+niche_breadths <- results |> 
+  group_by(year) |> 
+  summarise(
+    mean = mean(niche_volume, na.rm = T), 
+    sd = sqrt(var(niche_volume, na.rm = T)))
+
+niche_breadth_anova <- aov(niche_volume ~ year,  data = results)
+summary(niche_breadth_anova) # overall year is there is a highly significant dependence on year
+HSD.test(niche_breadth_anova, "year", group=FALSE, console=T) 
+# using Tukey post hoc test we see that only 2023 is highly significantly different from the others
+par(mfrow = c(2,2))
+plot(niche_breadth_anova)
+
+
+par(mfrow = c(1,1))
+plot <- ggplot(data = niche_breadths, aes(x = year, y = mean, group = 1)) + 
+  geom_errorbar(aes(ymax = mean + sd, ymin = mean - sd),
+                position = "dodge", color = "brown", width = 0.1) +
+  geom_line(color = "brown") +
+  ylab("mean(Niche Breadth)") +
+  xlab("Year")
+plot
+ggsave("../Daten/Results/Successional Dynamics/niche_breadth_depending_on_year.png")
+```

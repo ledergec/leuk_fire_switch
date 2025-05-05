@@ -1,0 +1,123 @@
+---
+title: "evolution of correlation of altitude with moisture and temperature over time"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+## This quarto document allows analysing the data from the leuk forest
+
+# Preparatory steps and data checking
+
+Load necessary libraries:
+```{r}
+library(ggplot2)
+library(tidyr)
+library(cocor)
+library(readr)
+library(multcompView)
+```
+
+
+```{r}
+mean_iv <- read_csv("../Daten/Intermediate/mean_indicator_values.csv")
+```
+
+# Compute the correlation of altitude with temperature indicator values for different years
+
+The correlation is very high. Maybe we would need to improve and correlate with the measured temperature.
+
+```{r}
+plot_id_2023_and_climax <- unique(append(mean_iv$global_id[mean_iv$year == 2023], mean_iv$global_id[mean_iv$year == "climax"]))
+
+# We only analyze data for which we have all years on the firepatch because there are better statistical tests if all the plots are common
+mean_iv <- mean_iv[mean_iv$global_id %in% plot_id_2023_and_climax,]
+
+compute_cor_p_val <- function(year1, year2, baseline_data, test_data, alternative, dependent) {
+  if(dependent) {
+    res <- cocor.dep.groups.overlap(
+      r.jk = cor(mean_iv[mean_iv$year == year1,c(baseline_data)], mean_iv[mean_iv$year == year1,c(test_data)])[1,1], 
+      r.jh = cor(mean_iv[mean_iv$year == year2,c(baseline_data)], mean_iv[mean_iv$year == year2,c(test_data)])[1,1],
+      r.kh = cor(mean_iv[mean_iv$year == year1,c(test_data)], mean_iv[mean_iv$year == year2,c(test_data)])[1,1],
+      n = nrow(mean_iv[mean_iv$year == "2023",]), 
+      alternative = alternative, 
+      alpha = 0.05, 
+      conf.level = 0.95, 
+      null.value = 0)
+    return(get.cocor.results(res)$hittner2003$p.value)
+  } else {
+    res <- cocor.indep.groups(
+      r1.jk = cor(mean_iv[mean_iv$year == year1,c(baseline_data)], mean_iv[mean_iv$year == year1,c(test_data)])[1,1], 
+      r2.hm = cor(mean_iv[mean_iv$year == year2,c(baseline_data)], mean_iv[mean_iv$year == year2,c(test_data)])[1,1],
+      n1 = nrow(mean_iv[mean_iv$year == year1,]), 
+      n2 = nrow(mean_iv[mean_iv$year == year2,]), 
+      alternative = alternative, 
+      alpha = 0.05, 
+      conf.level = 0.95, 
+      null.value = 0)
+    return(get.cocor.results(res)$fisher1925$p.value)
+  }
+}
+
+compute_p_values <- function(baseline_data, test_data, alternative, dependent) {
+  years <- c("2004", "2005", "2006", "2007", "2013", "2023", "climax")
+  results <- data.frame(years = character(), p_value = numeric())
+  for(i in 1:(length(years) - 1)) {
+    for(j in (i+1):length(years)) {
+      p_value <- compute_cor_p_val(years[i], years[j], baseline_data, test_data, alternative, years[j] != "climax" & dependent)
+      results <- add_row(results, years = paste(years[j], "-", years[i], sep = ""), p_value = p_value)
+    }
+  }
+  res <- results$p_value
+  names(res) <- results$years
+  return(res)
+}
+
+temp_p_values <- compute_p_values( "altitude", "EIVEresT", "greater", T)
+moisture_p_values <- compute_p_values( "altitude", "EIVEresM", "less", T)
+
+let_temp <- multcompLetters(temp_p_values)$Letters
+let_moist <- multcompLetters(moisture_p_values)$Letters
+
+temp_correlation <- c(
+  cor(mean_iv[mean_iv$year == 2004,]$altitude, mean_iv[mean_iv$year == 2004,]$EIVEresT),
+  cor(mean_iv[mean_iv$year == 2005,]$altitude, mean_iv[mean_iv$year == 2005,]$EIVEresT),
+  cor(mean_iv[mean_iv$year == 2006,]$altitude, mean_iv[mean_iv$year == 2006,]$EIVEresT),
+  cor(mean_iv[mean_iv$year == 2007,]$altitude, mean_iv[mean_iv$year == 2007,]$EIVEresT),
+  cor(mean_iv[mean_iv$year == 2013,]$altitude, mean_iv[mean_iv$year == 2013,]$EIVEresT),
+  cor(mean_iv[mean_iv$year == 2023,]$altitude, mean_iv[mean_iv$year == 2023,]$EIVEresT),
+  cor(mean_iv[mean_iv$year == "climax",]$altitude, mean_iv[mean_iv$year == "climax",]$EIVEresT))
+
+moisture_correlation <- c(
+  cor(mean_iv[mean_iv$year == 2004,]$altitude, mean_iv[mean_iv$year == 2004,]$EIVEresM),
+  cor(mean_iv[mean_iv$year == 2005,]$altitude, mean_iv[mean_iv$year == 2005,]$EIVEresM),
+  cor(mean_iv[mean_iv$year == 2006,]$altitude, mean_iv[mean_iv$year == 2006,]$EIVEresM),
+  cor(mean_iv[mean_iv$year == 2007,]$altitude, mean_iv[mean_iv$year == 2007,]$EIVEresM),
+  cor(mean_iv[mean_iv$year == 2013,]$altitude, mean_iv[mean_iv$year == 2013,]$EIVEresM),
+  cor(mean_iv[mean_iv$year == 2023,]$altitude, mean_iv[mean_iv$year == 2023,]$EIVEresM),
+  cor(mean_iv[mean_iv$year == "climax",]$altitude, mean_iv[mean_iv$year == "climax",]$EIVEresM))
+
+year <- c("2004", "2005", "2006", "2007", "2013", "2023", "climax")
+
+correlation_t_m_elevation <- data.frame(year = year, temp_correlation = -temp_correlation, moisture_correlation = moisture_correlation)
+
+correlation_t_m_elevation <- pivot_longer(correlation_t_m_elevation, cols = c(2,3))
+correlation_t_m_elevation$name <- as.factor(correlation_t_m_elevation$name)
+correlation_t_m_elevation$letters <- ""
+correlation_t_m_elevation[correlation_t_m_elevation$name == "temp_correlation",]$letters <- let_temp[order(names(let_temp))]
+correlation_t_m_elevation[correlation_t_m_elevation$name == "moisture_correlation",]$letters <- let_moist[order(names(let_moist))]
+
+correlation_plot <- ggplot(data = correlation_t_m_elevation, aes(x = year, y = value, group = name, col = name)) + 
+  geom_point() + 
+  theme_classic() +
+  xlab("Year") + 
+  ylab("Pearson r (mean iv, altitude)") +
+  labs(col='Legend') +
+  scale_color_manual(values=c("blue", "red"), labels = c("cor(altitude, M)", "-cor(altitude, T)")) +
+  geom_text(aes(x = year, y = value, label = letters), col = "black", nudge_y = .015, size = 3)
+
+correlation_plot
+
+ggsave("../Daten/Results/Successional Dynamics/temperature_altitude_correlation.png")
+```
+

@@ -1,0 +1,232 @@
+---
+title: "compute disturbance indicator values and assess correlation with existing systems"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+## This quarto document allows analysing the data from the leuk forest
+
+# Preparatory steps and data checking
+
+Load necessary libraries:
+```{r}
+library(ggplot2)
+library(multcomp)
+library(ggpubr)
+library(tidyr)
+library(visreg)
+library(lme4)
+library(readr)
+library(dplyr)
+library(multcompView)
+```
+
+```{r}
+mean_iv <- read_csv("../Daten/Intermediate/mean_indicator_values.csv")
+```
+
+
+<!-- # Simple plots showing the raw indicator value data per plot in two different ways -->
+
+<!-- For every plot, show the trajectory of the indicator values across all years: -->
+<!-- ```{r} -->
+<!-- plots_to_include <- unique(mean_iv$global_id)[seq(1, length(unique(mean_iv$global_id)), 10)] -->
+<!-- mean_iv_selection <- mean_iv[mean_iv$global_id %in% plots_to_include,] -->
+<!-- plot_evolution_of_indicator_value_for_all_plots <- function(data, indicator_value) { -->
+<!--   ggplot(data = data, mapping = aes(x = year, y = .data[[indicator_value]], color = elevation)) +  -->
+<!--     geom_point() +  -->
+<!--     geom_line() +  -->
+<!--     facet_wrap(~ global_id) -->
+<!-- } -->
+
+<!-- plot_evolution_of_indicator_value_for_all_plots(mean_iv_selection, "EIVEresM") -->
+<!-- plot_evolution_of_indicator_value_for_all_plots(mean_iv_selection, "EIVEresN") -->
+<!-- plot_evolution_of_indicator_value_for_all_plots(mean_iv_selection, "EIVEresR") -->
+<!-- plot_evolution_of_indicator_value_for_all_plots(mean_iv_selection, "EIVEresL") -->
+<!-- plot_evolution_of_indicator_value_for_all_plots(mean_iv_selection, "EIVEresT") -->
+<!-- plot_evolution_of_indicator_value_for_all_plots(mean_iv_selection, "DistFrequency") -->
+<!-- plot_evolution_of_indicator_value_for_all_plots(mean_iv_selection, "DistSeverity") -->
+<!-- plot_evolution_of_indicator_value_for_all_plots(mean_iv_selection, "MowingFrequency") -->
+<!-- plot_evolution_of_indicator_value_for_all_plots(mean_iv_selection, "GrazingPressure") -->
+<!-- plot_evolution_of_indicator_value_for_all_plots(mean_iv_selection, "SoilDisturbance") -->
+<!-- plot_evolution_of_indicator_value_for_all_plots(mean_iv_selection, "Competition") -->
+<!-- plot_evolution_of_indicator_value_for_all_plots(mean_iv_selection, "Stress") -->
+<!-- plot_evolution_of_indicator_value_for_all_plots(mean_iv_selection, "Ruderalness") -->
+<!-- plot_evolution_of_indicator_value_for_all_plots(mean_iv_selection, "log_dry_seed_mass_mg") -->
+<!-- plot_evolution_of_indicator_value_for_all_plots(mean_iv_selection, "log_sla_cm2_per_mg") -->
+<!-- plot_evolution_of_indicator_value_for_all_plots(mean_iv_selection, "log_canopy_height_m") -->
+<!-- plot_evolution_of_indicator_value_for_all_plots(mean_iv_selection, "species_richness") -->
+<!-- ``` -->
+
+<!-- For all years, show the correlation between the indicator values and altitude: -->
+<!-- ```{r} -->
+<!-- mean_iv$year <- mean_iv$year -->
+<!-- plot_for_every_year_elevation_iv_correlation <- function(data, indicator_value) { -->
+<!-- ggplot(data = mean_iv, mapping = aes(x = elevation, y = .data[[indicator_value]])) +  -->
+<!--   geom_point() +  -->
+<!--   geom_smooth(method='lm', formula= y~x) + -->
+<!--   facet_wrap(~ year) -->
+<!-- } -->
+
+<!-- sum(is.na(mean_iv$EIVEresM[mean_iv$year == 2023])) -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "EIVEresM") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "EIVEresN") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "EIVEresR") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "EIVEresL") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "EIVEresT") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "DistFrequency") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "DistSeverity") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "MowingFrequency") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "GrazingPressure") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "SoilDisturbance") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "Competition") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "Stress") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "Ruderalness") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "M") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "N") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "R") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "L") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "Temp") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "log_dry_seed_mass_mg") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "log_sla_cm2_per_mg") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "log_canopy_height_m") -->
+<!-- plot_for_every_year_elevation_iv_correlation(mean_iv, "species_richness") -->
+
+<!-- ``` -->
+
+# GLMM model optimization and visualization for indicator values evolution over time and elevational gradient
+
+
+```{r}
+names(mean_iv)
+any(is.na(mean_iv$slope))
+mean_iv$year <- as.factor(mean_iv$year)
+
+compute_p_values_for_letters <- function(response_name) {
+  tmp_formula_string <- paste(response_name, " ~ elevation + year + (1|global_id)", sep = "")
+  model <- lmer(as.formula(tmp_formula_string), data=mean_iv)
+  s <- summary(glht(model, linfct = mcp (year = "Tukey" )))
+  res <- s$test$pvalues
+  names(res) <- gsub(" ", "", names(s$test$coefficients))
+  return(res)
+}
+
+create_plot <- function(response_name, ylab, title) {
+  letters <- multcompLetters(compute_p_values_for_letters(response_name))
+  order <- order(names(letters$Letters))
+
+  small_letters <- mean_iv |> 
+    group_by(year) |>
+    summarise(
+      mean = mean(!!sym(response_name)), 
+      quant = quantile(!!sym(response_name), probs = 0.75)) 
+  small_letters$letters <- letters$Letters[order]
+
+  p <- ggplot(data = mean_iv, aes_string(x = "year", y = response_name)) +
+    geom_boxplot() +
+    theme_classic() +
+    ylab(ylab) +
+    xlab("Year") +
+    ggtitle(title) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    geom_text(data = small_letters, aes(x = year, y = quant, label = letters),
+              size = 3, 
+              vjust = -0.5,
+              nudge_x = 0.1)
+  
+  return(p)
+}
+
+compute_p_values <- function(response_name) {
+  tmp_formula_string <- paste(response_name, " ~ elevation + year + (1|global_id)", sep = "")
+  model <- lmer(as.formula(tmp_formula_string), data=mean_iv)
+  # AIC(model)
+   summary(model)
+  s <- summary(glht(model, linfct = mcp (year = "Tukey" )))
+  result <- data.frame(year = names(s$test$coefficients), response_name = s$test$pvalues)
+  names(result)[2] <- response_name
+  return(result)
+}
+
+names(mean_iv)
+mean_iv <- mean_iv[!is.na(mean_iv$log_dry_seed_mass_mg),]
+
+p_moisture <- create_plot("EIVEresM", "Moisture", "M")
+p_nutrients <- create_plot("EIVEresN", "Nutrients", "N")
+p_reaction <- create_plot("EIVEresR", "Reaction", "R")
+p_light <- create_plot("EIVEresL", "Light", "L")
+p_temperature <- create_plot("EIVEresT", "Temperature", "T")
+p_dist_sev <- create_plot("DistSeverity", "Disturbance Severity", "Disturbance Severity")
+p_dist_freq <- create_plot("DistFrequency", "Disturbance Frequency", "Disturbance Frequency")
+p_mowing_freq <- create_plot("MowingFrequency", "Mowing Frequency", "Mowing Frequency")
+p_grazing_pressure <- create_plot("GrazingPressure", "Grazing Pressure", "Grazing Pressure")
+p_soil_disturbance <- create_plot("SoilDisturbance", "Soil Disturbance", "Soil Distrubance")
+p_competition <- create_plot("Competition", "Competition", "Competition")
+p_stress <- create_plot("Stress", "Stress", "Stress")
+p_ruderalness <- create_plot("Ruderalness", "Ruderalness", "Ruderalness")
+p_hemeroby <- create_plot("EM", "Hemeroby", "Hemeroby")
+p_seed <- create_plot("log_dry_seed_mass_mg", "log10(Dry Seed Mass (mg))", "Seed Mass")
+p_leaf <- create_plot("log_sla_cm2_per_mg", "log10(SLA (cm^2/mg))", "Leaf Area")
+p_height <- create_plot("log_canopy_height_m", "log10(Canopy height (m))", "Canopy Height")
+
+p <- ggarrange(
+  p_moisture, p_nutrients, p_reaction, 
+  p_light, p_temperature, p_dist_sev, 
+  p_dist_freq, p_mowing_freq, p_grazing_pressure, 
+  p_soil_disturbance, p_competition, p_stress, 
+  p_ruderalness, p_hemeroby, p_seed, 
+  p_leaf, p_height, 
+  ncol = 3,
+  nrow = 6
+)
+p
+ggsave("../Daten/Results/Successional Dynamics/Basic Analysis/all_taxon_traits_plot.png", p, width = 3000, height = 4200, units = "px")
+
+p_moisture <- compute_p_values("EIVEresM")
+p_nutrients <- compute_p_values("EIVEresN")
+p_reaction <- compute_p_values("EIVEresR")
+p_light <- compute_p_values("EIVEresL")
+p_temperature <- compute_p_values("EIVEresT")
+p_dist_sev <- compute_p_values("DistSeverity")
+p_dist_freq <- compute_p_values("DistFrequency")
+p_mowing_freq <- compute_p_values("MowingFrequency")
+p_grazing_pressure <- compute_p_values("GrazingPressure")
+p_soil_disturbance <- compute_p_values("SoilDisturbance")
+p_competition <- compute_p_values("Competition")
+p_stress <- compute_p_values("Stress")
+p_ruderalness <- compute_p_values("Ruderalness")
+p_hemeroby <- compute_p_values("EM")
+p_seed <- compute_p_values("log_dry_seed_mass_mg")
+p_leaf <- compute_p_values("log_sla_cm2_per_mg")
+p_height <- compute_p_values("log_canopy_height_m")
+
+p_values <- p_moisture
+p_values <- full_join(p_values, p_nutrients, by = "year")
+p_values <- full_join(p_values, p_reaction, by = "year")
+p_values <- full_join(p_values, p_light, by = "year")
+p_values <- full_join(p_values, p_temperature, by = "year")
+p_values <- full_join(p_values, p_dist_sev, by = "year")
+p_values <- full_join(p_values, p_dist_freq, by = "year")
+p_values <- full_join(p_values, p_mowing_freq, by = "year")
+p_values <- full_join(p_values, p_grazing_pressure, by = "year")
+p_values <- full_join(p_values, p_soil_disturbance, by = "year")
+p_values <- full_join(p_values, p_competition, by = "year")
+p_values <- full_join(p_values, p_stress, by = "year")
+p_values <- full_join(p_values, p_ruderalness, by = "year")
+p_values <- full_join(p_values, p_hemeroby, by = "year")
+p_values <- full_join(p_values, p_seed, by = "year")
+p_values <- full_join(p_values, p_leaf, by = "year")
+p_values <- full_join(p_values, p_height, by = "year")
+
+p_values[,-1] <- round(p_values[,-1], digits = 3)
+p_values
+write_csv(p_values, "../Daten/Results/Successional Dynamics/p_values.csv")
+```
+
+
+
+
+
+
+

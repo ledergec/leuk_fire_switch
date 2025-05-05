@@ -1,0 +1,244 @@
+---
+title: "compute disturbance indicator values and assess correlation with existing systems"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+## This quarto document allows analysing the data from the leuk forest
+
+# Preparatory steps and data checking
+
+Load necessary libraries:
+```{r}
+library(readr)
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(stringi)
+```
+
+Read in the data an compute some basic metrics:
+```{r}
+species <- read_delim("../Daten/Intermediate/combined_data.csv")
+
+taxon_conversion <- read_delim("../Daten/Intermediate/leuk_landolt_try_midolo_eive_taxon_conversion.csv")
+species <- left_join(species, taxon_conversion, join_by(`Species_unified_2004-23` == infoflora_taxon))
+```
+
+# Reading in numercial values and computation of average indicator values per plot
+
+Read in EIVE indicator values and add them to species data frame:
+```{r}
+eive <- read_delim("../Daten/EIVE/EIVE_Paper_1.0_SM_08.csv", ",")
+species <- left_join(
+  species, 
+  eive[,c("TaxonConcept","EIVEres-M","EIVEres-N","EIVEres-R","EIVEres-L","EIVEres-T")], 
+  join_by(eive_taxa == TaxonConcept))
+```
+
+Read in the disturbance data from midolo et al and add them to species data frame:
+```{r}
+div <- read_delim("../Daten/Disturbance Indicator Values/disturbance_indicator_values.csv", ",")
+species <- left_join(
+  species, 
+  div[,c("species","Disturbance.Severity","Disturbance.Frequency","Mowing.Frequency", "Grazing.Pressure","Soil.Disturbance")], 
+  join_by(midolo_taxa == species))
+```
+
+Read in the TRY data and add them to species data frame:
+```{r}
+try_data <- read.delim("../Daten/TRY/36239_25092024162731/36239.csv", sep = "\t", encoding = 'Latin-1')
+
+try_data <- try_data[!is.na(try_data$SpeciesName),] # remove all empty rows
+try_data <- try_data[!(startsWith(try_data$OrigValueStr,"\xa0") | 
+                         startsWith(try_data$OrigValueStr,"<") | 
+                         try_data$OrigValueStr == "." |
+                         try_data$OrigValueStr == "na" |
+                         try_data$OrigValueStr == "herb" |
+                         endsWith(try_data$OrigValueStr,"*") |
+                         endsWith(try_data$OrigValueStr,"m") |
+                         endsWith(try_data$OrigValueStr,"ft") |
+                         grepl("-", try_data$OrigValueStr) |
+                         grepl("/", try_data$OrigValueStr) |
+                         grepl("]", try_data$OrigValueStr) |
+                         try_data$OrigValueStr == ""),] # remove all funky characters
+
+select_dry_seed_mass <- try_data$TraitID == 26
+select_dry_seed_mass[is.na(select_dry_seed_mass)] <- FALSE
+select_sla_with_peticole <- try_data$TraitID == 3116
+select_sla_with_peticole[is.na(select_sla_with_peticole)] <- FALSE
+select_sla_peticole_undef <- try_data$TraitID == 3117
+select_sla_peticole_undef[is.na(select_sla_peticole_undef)] <- FALSE
+select_canopy_height <- try_data$TraitID == 3106
+select_canopy_height[is.na(select_canopy_height)] <- FALSE
+
+remove_seed_weight_outliers <- function(values) {
+  return(values[values < 3*11490])
+}
+
+seed_mass_conversion = data.frame(unit = c("mg", "g / 1000 seeds", "micro gx10", "g ?", "mg per seed", "1/pound", "mg/100", "(mg)", "1/kg", "g", "g/1000", "mg/1000", "mg/100 seeds", "mg/seed", "g/100 seeds"), conversion_factor = c(1, 1, NA, NA, 1, NA, 1/100, 1, NA, 1000, 1, 1/1000, 1/100, 1, 10))
+write_csv(seed_mass_conversion, "../Daten/Intermediate/seed_mass_conversion.csv")
+
+seed_mass <- try_data[select_dry_seed_mass,] |> 
+  group_by(AccSpeciesName) |>
+  summarise(
+    dry_seed_mass_mg = 
+      mean(remove_seed_weight_outliers(
+        as.numeric(OrigValueStr)*seed_mass_conversion$conversion_factor[match(OrigUnitStr,seed_mass_conversion$unit)]),
+        na.rm = TRUE)
+  )
+
+species <- left_join(
+  species, 
+  seed_mass, 
+  join_by(try_taxa == AccSpeciesName))
+
+sla_conversion = data.frame(
+  unit = c("cm2/g", "mm2/mg", "mm2 / mg", "m2/kg", "m\xb2 Kg-1", "m\xb2/kg", "m2 kg-1", "m2/kg leaf DM", "mm2/g", "mm2 mg-1", "mm2 g-1", "g m-2", "(m\xb2 kg-1)", "mm2*mg-1", "g/m2", "g/cm2", "mm\xb2/mg", "cm2/g (n.r.)", "mm^2/mg", "gDM m-2", "cm2 g-1", "mm2mg-1", "cm2 / g", "m2/g", "mm2  mg-1", "cm2 mg-1" ),
+  conversion_factor = c(1, 10, 10, 10, 10, 10, 10, 10, NA, 10, 0.01, NA, 10, 10, NA, NA, 10, 1, 10, NA, 1, 10, 1, 10000, 10, 1000))
+
+sla <- try_data[select_sla_with_peticole,] |> 
+  group_by(AccSpeciesName) |>
+  summarise(
+    sla_cm2_per_mg = 
+      mean(
+        as.numeric(OrigValueStr)*sla_conversion$conversion_factor[match(OrigUnitStr,sla_conversion$unit)],
+        na.rm = TRUE)
+  )
+
+species <- left_join(
+  species, 
+  sla, 
+  join_by(try_taxa == AccSpeciesName))
+
+canopy_height_conversion = data.frame(
+  unit = c("cm", "m", "mm", "feet", "(cm)", " cm", " m ", "Cm"),
+  conversion_factor = c(0.01, 1, 0.001, 0.3048, 0.01, 0.01, 1, 0.01))
+
+try_data[select_canopy_height & try_data$AccSpeciesName == "Teucrium chamaedrys",]$OrigValueStr
+
+canopy_height <- try_data[select_canopy_height,] |> 
+  group_by(AccSpeciesName) |>
+  summarise(
+    canopy_height_m = 
+      mean(
+        as.numeric(OrigValueStr)*canopy_height_conversion$conversion_factor[match(OrigUnitStr,canopy_height_conversion$unit)],
+        na.rm = TRUE)
+  )
+
+species <- left_join(
+  species, 
+  canopy_height, 
+  join_by(try_taxa == AccSpeciesName))
+```
+
+Read in the Landolt et al values and add them to species data frame:
+```{r}
+parse_em <- function(str) {
+  str[str_count(str, "-") == 1] <- as.character((as.numeric(stri_extract(str[str_count(str, "-") == 1], regex =  "[0-9]+")) + as.numeric(stri_extract(str[str_count(str, "-") == 1], regex =  "[0-9]+$")))/2)
+  
+  return(as.numeric(str))
+}
+
+landolt_data <- read_csv("../Daten/Landolt/2023-03-29_FI-export_Stefan_Widmer.csv")
+landolt_data$Competition <- str_count(landolt_data$KS, "c")
+landolt_data$Stress <- str_count(landolt_data$KS, "s")
+landolt_data$Ruderalness <- str_count(landolt_data$KS, "r")
+landolt_data$EM <- parse_em(landolt_data$EM)
+
+species <- left_join(
+  species, 
+  landolt_data[,c("Taxon","Competition","Stress","Ruderalness", "EM", "F", "N", "R", "L", "T")], 
+  join_by(landolt_taxa == Taxon))
+species$M <- species$F
+species$M[species$M == "x"] <- NA
+species$M[species$M == "-"] <- NA
+species$M[species$M == "4^"] <- "4"
+species$M <- as.numeric(species$M)
+
+species$Temp <- species$T
+species$Temp[species$Temp == "x"] <- NA
+species$Temp <- as.numeric(species$Temp)
+
+species$N[species$N == "-"] <- NA
+species$N[species$N == "x"] <- NA
+species$N <- as.numeric(species$N)
+
+species$R[species$R == "-"] <- NA
+species$R[species$R == "x"] <- NA
+species$R <- as.numeric(species$R)
+
+species$L[species$R == "-"] <- NA
+species$L[species$R == "x"] <- NA
+species$L <- as.numeric(species$L)
+```
+
+Compute the average values per releve (separate for every year):
+```{r}
+compute_mean <- function(species, numerical_value) {
+  df <- data.frame(species, numerical_value)
+  temp <- df |> 
+    group_by(species) |> 
+    summarise(value = mean(numerical_value, na.rm = TRUE))
+  temp <- temp[!is.na(temp$value),]
+  return(mean(temp$value, na.rm = T))
+}
+
+compute_weighted_mean <- function(species, cover, numerical_value) {
+  df <- data.frame(species, cover, numerical_value)
+  temp <- df |>
+    group_by(species) |>
+    summarise(
+      cover = 1 - prod(1-cover/100), # probabilistic layer combination as proposed by Hagen S. Fischer
+      value = mean(numerical_value, na.rm = TRUE)
+    )
+  temp <- temp[!is.na(temp$value),]
+  return(sum(temp$value*temp$cover, na.rm = T)/sum(temp$cover, na.rm = T))
+}
+
+aggregated <- species |> 
+  group_by(global_id, year) |> 
+  summarise(
+    species_richness = length(unique(`Species_unified_2004-23`)),
+    
+    EIVEresM = compute_mean(`Species_unified_2004-23`, `EIVEres-M`), 
+    EIVEresN = compute_mean(`Species_unified_2004-23`, `EIVEres-N`), 
+    EIVEresR = compute_mean(`Species_unified_2004-23`, `EIVEres-R`), 
+    EIVEresL = compute_mean(`Species_unified_2004-23`, `EIVEres-L`), 
+    EIVEresT = compute_mean(`Species_unified_2004-23`, `EIVEres-T`), 
+    
+    M = compute_mean(`Species_unified_2004-23`, M), 
+    N = compute_mean(`Species_unified_2004-23`, N), 
+    R = compute_mean(`Species_unified_2004-23`, R), 
+    L = compute_mean(`Species_unified_2004-23`, L), 
+    Temp = compute_mean(`Species_unified_2004-23`, Temp), 
+    
+    DistSeverity = compute_mean(`Species_unified_2004-23`, Disturbance.Severity),
+    DistFrequency = compute_mean(`Species_unified_2004-23`, Disturbance.Frequency),
+    MowingFrequency = compute_mean(`Species_unified_2004-23`, Mowing.Frequency),
+    GrazingPressure = compute_mean(`Species_unified_2004-23`, Grazing.Pressure),
+    SoilDisturbance = compute_mean(`Species_unified_2004-23`, Soil.Disturbance),
+    
+    Competition = compute_mean(`Species_unified_2004-23`, Competition), 
+    Stress = compute_mean(`Species_unified_2004-23`, Stress), 
+    Ruderalness = compute_mean(`Species_unified_2004-23`, Ruderalness), 
+    EM = compute_mean(`Species_unified_2004-23`, EM), 
+
+    # log before mean would probably make more sense??
+    log_dry_seed_mass_mg = compute_weighted_mean(`Species_unified_2004-23`, percentage200, log10(dry_seed_mass_mg)),
+    log_sla_cm2_per_mg = compute_weighted_mean(`Species_unified_2004-23`, percentage200, log10(sla_cm2_per_mg)),
+    log_canopy_height_m = compute_weighted_mean(`Species_unified_2004-23`, percentage200, log10(canopy_height_m)),
+    
+    elevation = mean(elevation_m, rm.na = TRUE),
+    
+    mean_soil_depth = compute_mean(`Species_unified_2004-23`, mean_soil_depth)
+  )
+
+slope_aspect <- read_csv("../Daten/Intermediate/slope_and_aspect.csv")
+aggregated <- left_join(aggregated,slope_aspect, join_by(global_id))
+aggregated$year <- as.factor(aggregated$year)
+aggregated$southing <- -cos(aggregated$aspect)
+
+write_csv(x = aggregated, file = "../Daten/Intermediate/mean_indicator_values.csv")
+```

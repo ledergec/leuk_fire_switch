@@ -1,0 +1,301 @@
+---
+title: "ordination"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+## Ordination analysis
+
+Good pages to read:
+How to do this using ggplot: https://rstudio-pubs-static.s3.amazonaws.com/694016_e2d53d65858d4a1985616fa3855d237f.html#1_Packages_needed
+
+
+Load the necessary libraries:
+
+```{r}
+library(readr)
+library(ggplot2)
+library(vegan)
+library(BiodiversityR)
+library(gridExtra)
+library(ggpubr)
+library(dplyr)
+library(ggordiplots)
+```
+
+Read in the vegetation data from the Leuk fire sampling. 
+```{r}
+transformed_data <- read_delim("../Daten/Intermediate/incidence_matrix.csv")
+transformed_data$year[transformed_data$year == 2178] <- "climax"
+
+mean_indicators <- read_delim("../Daten/Intermediate/mean_indicator_values.csv")
+mean_indicators$year[mean_indicators$year == "climax"] <- 2178
+mean_indicators$year <- as.numeric(mean_indicators$year)
+mean_indicators$plotid <- mean_indicators$year * 10000 + mean_indicators$global_id
+mean_indicators <- mean_indicators[,c("plotid", "EIVEresM", "EIVEresR", "EIVEresL", "EIVEresT", "DistSeverity", "DistFrequency", "MowingFrequency", "GrazingPressure", "SoilDisturbance", "Competition", "Stress", "Ruderalness", "EM", "log_dry_seed_mass_mg", "log_sla_cm2_per_mg", "log_canopy_height_m", "mean_soil_depth", "aspect", "slope", "southing")]
+
+transformed_data <- right_join(mean_indicators, transformed_data, join_by(plotid))
+```
+
+
+Finally, apply the different ordination techniques:
+```{r}
+BioR.theme <- theme(panel.background = element_blank(),
+                    panel.border = element_blank(),
+                    panel.grid = element_blank(),
+                    axis.line = element_line("gray25"),
+                    text = element_text(size = 12, family="Arial"),
+                    axis.text = element_text(size = 10, colour = "gray25"),
+                    axis.title = element_text(size = 14, colour = "gray25"),
+                    legend.title = element_text(size = 14),
+                    legend.text = element_text(size = 14),
+                    legend.key = element_blank())
+
+select_data_to_analyze <- function(min_elevation, max_elevation, presence_absence, years = unique(transformed_data$year)) {
+  data_to_analyze <- transformed_data[transformed_data$elevation >= min_elevation & transformed_data$elevation < max_elevation,]
+  
+  # remove other columns like plotid, elevation, year
+  data_to_analyze <- data_to_analyze[data_to_analyze$year %in% years, 24:ncol(transformed_data)]
+  # remove species which are not present in the data anymore due to the selected subset of plots
+  data_to_analyze <- data_to_analyze[,colSums(data_to_analyze)>0]
+  
+  if(presence_absence) { # convert cover data to presence = 1, absence = 0
+    species_to_analyze <- colnames(data_to_analyze)
+    for(species in species_to_analyze) {
+      data_to_analyze[[species]] <- as.integer(data_to_analyze[[species]] > 0)
+    }
+  }
+  
+  return(data_to_analyze)
+}
+
+veganCovEllipse <-  function(cov, center = c(0,0), scale = 1, npoints = 100) {
+    ## Basically taken from the 'car' package: The Cirlce
+    theta <- (0:npoints) * 2 * pi/npoints
+    Circle <- cbind(cos(theta), sin(theta))
+    ## scale, center and cov must be calculated separately
+    Q <- chol(cov, pivot = TRUE)
+    ## pivot takes care of cases when points are on a line
+    o <- attr(Q, "pivot")
+    t(center + scale * t(Circle %*% Q[,o]))
+}
+
+select_data_to_analyze_env <- function(min_elevation, max_elevation, years = unique(transformed_data$year)) {
+  data_to_analyze <- transformed_data[transformed_data$elevation >= min_elevation & transformed_data$elevation < max_elevation,]
+  data_to_analyze.env <- data_to_analyze[data_to_analyze$year %in% years, 2:23]
+  
+  return(data_to_analyze.env)
+}
+
+g_legend <- function(a.gplot) { # Allows extracting a legend from a ggplot
+  tmp <- ggplot_gtable(ggplot_build(a.gplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)
+}
+
+# Needed for debugging of the following function code...
+# min_elevation <- elevations[1]
+# max_elevation <- elevations[4]+1
+# xlim <- c(-2, 2)
+# ylim <- c(-2, 2)
+
+generate_ordi_plot <- function(min_elevation, max_elevation, presence_absence, y_label = TRUE, xlim = NA, ylim = NA, title) {
+  
+  data_to_analyze <- select_data_to_analyze(min_elevation, max_elevation, presence_absence)
+  data_to_analyze.env <- select_data_to_analyze_env(min_elevation, max_elevation)
+  m_data_to_analyze = as.matrix(data_to_analyze)
+  
+  corr <- cor(data_to_analyze.env[,-21])
+  corr[abs(corr) < 0.75] <- 0
+
+  solution <-  metaMDS(m_data_to_analyze,
+                  distance = "bray",
+                  # maxit = 999,
+                  trymax = 1000
+                  )
+  summary(solution)
+
+  scores <- as.data.frame(scores(solution, display = "sites"))
+  scores <- cbind(scores, Year = data_to_analyze.env$year)
+
+  en = envfit(solution, data_to_analyze.env, permutations = 20, na.rm = TRUE)
+  en_coord_cont = as.data.frame(scores(en, "vectors"))
+
+  NMDS = data.frame(MDS1 = solution$points[,1], MDS2 = solution$points[,2],Year=as.factor(data_to_analyze.env$year))
+  plot(0,type='n',axes=FALSE,ann=FALSE)
+  ellipse <- ordiellipse(solution, data_to_analyze.env$year, display = "sites", 
+                   kind = "sd", conf = 0.95, label = T)
+
+  df_ell <- data.frame()
+  for(y in levels(NMDS$Year)){
+    df_ell <- rbind(df_ell, cbind(as.data.frame(with(NMDS[NMDS$Year==y,],
+                    veganCovEllipse(ellipse[[y]]$cov, ellipse[[y]]$center, ellipse[[y]]$scale)))
+                                  ,Year=y))
+  }
+
+
+  point_only_p <- ggplot(scores) + 
+    coord_fixed(ratio=1) +
+    xlim(xlim) +
+    ylim(ylim) +
+    geom_point(mapping = aes(x = NMDS1, y = NMDS2, colour = Year), size = 0.5) +
+    geom_path(data = df_ell, aes(x = NMDS1, y = NMDS2, colour = Year), linewidth = 0.5, linetype = 1) +
+    BioR.theme +
+    ggsci::scale_colour_npg()
+  
+  create_plot_with_vectors <- function(col_list, label_list) {
+    plot <- ggplot(scores) + 
+      coord_fixed(ratio=1) +
+      xlim(xlim) +
+      ylim(ylim) +
+      geom_path(data = df_ell, aes(x = NMDS1, y = NMDS2, colour = Year), linewidth = 0.5, linetype = 1) +
+      geom_segment(aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2), data = en_coord_cont[col_list,], linewidth = 0.5, alpha = 0.5, colour = "black") +
+      geom_text(data = en_coord_cont[col_list,], aes(x = NMDS1, y = NMDS2), colour = "black", label = label_list) +
+      BioR.theme +
+      ggsci::scale_colour_npg()
+    return(plot)
+  }
+
+  eive_plot <- create_plot_with_vectors(c("EIVEresM", "EIVEresN", "EIVEresR", "EIVEresL", "EIVEresT", "elevation"), c("M","N","R","L","T", "Altitude"))
+  disturbance_plot <- create_plot_with_vectors(c("DistSeverity", "DistFrequency", "MowingFrequency", "GrazingPressure", "SoilDisturbance", "EM", "elevation"), c("Severity","Frequency","Mowing","Grazing","Soil","Hemeroby","Altitude"))
+  csr_plot <- create_plot_with_vectors(c("Competition", "Stress", "Ruderalness", "elevation"), c("Competition", "Stress", "Ruderalness","Altitude"))
+  slh_plot <- create_plot_with_vectors(c("log_dry_seed_mass_mg", "log_sla_cm2_per_mg", "log_canopy_height_m", "elevation"), c("Seed Mass", "SLA", "Height", "Altitude"))
+  env_plot <- create_plot_with_vectors(c("mean_soil_depth", "aspect", "slope", "southing", "elevation"), c("Soil Depth", "Aspect", "Slope","Southing", "Altitude"))
+
+  plotgg1 <- ggarrange(point_only_p, eive_plot, disturbance_plot, csr_plot, slh_plot, env_plot, nrow = 2, ncol = 3, common.legend = T)
+  return(plotgg1)
+}
+
+# The gg_enfit result seems to be hard to combine with gg_ordiplot output
+generate_ordi_plot2 <- function(min_elevation, max_elevation, presence_absence, y_label = TRUE, xlim = NA, ylim = NA, title) {
+  
+  data_to_analyze <- select_data_to_analyze(min_elevation, max_elevation, presence_absence)
+  data_to_analyze.env <- select_data_to_analyze_env(min_elevation, max_elevation)
+  m_data_to_analyze = as.matrix(data_to_analyze)
+  
+  # corr <- cor(data_to_analyze.env[,-21])
+  # corr[abs(corr) < 0.75] <- 0
+  # 
+  solution <-  metaMDS(m_data_to_analyze,
+                  distance = "bray",
+                  # maxit = 999,
+                  trymax = 5
+                  )
+  summary(solution)
+  
+  plot <- gg_ordiplot(solution, groups = data_to_analyze.env$year, kind = "sd", conf = 0.95, pt.size = 0.5, plot = FALSE)$plot
+  plot <- plot +
+    BioR.theme +
+    ggsci::scale_colour_npg() + 
+    labs(colour='Year')
+
+  plot
+  
+  plot <- plot + gg_envfit(ord = solution, env = data_to_analyze.env, perm = 10, pt.size = 2, alpha = 0.2)
+
+  return(plot)
+}
+
+check_significance <- function(min_elevation, max_elevation, presence_absence) {
+  years <- c("2004", "2005", "2006", "2007", "2013", "2023", "climax")
+  
+  results <- data.frame(year = character(), p_value = numeric())
+  for(i in 1:(length(years) - 1)) {
+    data_to_analyze <- select_data_to_analyze(min_elevation, max_elevation, presence_absence, years[i:(i+1)])
+    data_to_analyze.env <- select_data_to_analyze_env(min_elevation, max_elevation, years[i:(i+1)])
+    
+    adon.results <- adonis2(data_to_analyze ~ data_to_analyze.env$year, method="bray", perm=999)
+    results <- add_row(results, year = paste(years[i], "-", years[i+1], sep = ""), p_value = adon.results$`Pr(>F)`[1])
+  }
+  
+  return(results)
+}
+```
+
+Actually execute the necessary calls:
+```{r}
+min(transformed_data$elevation)
+max(transformed_data$elevation)
+(max(transformed_data$elevation) - min(transformed_data$elevation))/3
+elevations <- seq(
+  min(transformed_data$elevation), 
+  max(transformed_data$elevation), 
+  (max(transformed_data$elevation) - min(transformed_data$elevation))/3)
+
+
+data_to_analyze.env <- select_data_to_analyze_env(min_elevation = elevations[1], max_elevation = elevations[4]+1)
+m_data_to_analyze = as.matrix(data_to_analyze.env)
+
+corr <- cor(data_to_analyze.env[,-21])
+corr[abs(corr) < 0.75] <- 0
+corr <- as.data.frame(corr)
+write_csv(corr, "../Daten/Results/correlations_indicator_values.csv")
+
+
+presence_absence <- F
+
+plot_elevation_all_nmds <- generate_ordi_plot(
+  min_elevation = elevations[1],
+  max_elevation = elevations[4]+1,
+  presence_absence = presence_absence,
+  y_label = T,
+  xlim = c(-2,2),
+  ylim =  c(-2,2),
+  title = "All Elevations")
+
+# Trying package ordiplot
+# plot_elevation_all_nmds <- generate_ordi_plot2(
+#   min_elevation = elevations[1],
+#   max_elevation = elevations[4]+1,
+#   presence_absence = presence_absence,
+#   y_label = T,
+#   xlim = c(-2,2),
+#   ylim =  c(-2,2),
+#   title = "All Elevations")
+
+adonres <- check_significance(min_elevation = elevations[1], max_elevation = elevations[4]+1, presence_absence = presence_absence)
+adonres
+
+# overall_plot <- grid.arrange(
+#                   arrangeGrob(
+#                     plot_elevation_all_nmds + theme(legend.position="none"),
+#                     g_legend(plot_elevation_all_cca),
+#                     nrow=1), nrow=1, heights=c(10))
+# overall_plot
+
+ggsave("../Daten/Results/Successional Dynamics/Ordination/all_altitudes_nmds.png", plot_elevation_all_nmds)
+
+x_lim <- c(-2, 2)
+y_lim <- c(-2, 2)
+
+plot_low_elevation <- generate_ordi_plot(
+  elevations[1], elevations[2], presence_absence, T, x_lim, y_lim, title = "Low Altitude")
+adonres_low_elevation <- check_significance(elevations[1], elevations[2], presence_absence)
+adonres_low_elevation
+
+plot_mid_elevation <- generate_ordi_plot(
+  elevations[2], elevations[3], presence_absence, F, x_lim, y_lim, title = "Mid Altitude")
+adonres_mid_elevation <- check_significance(elevations[2], elevations[3], presence_absence)
+adonres_mid_elevation
+
+x_lim <- c(-2, 2.5)
+
+plot_high_elevation <- generate_ordi_plot(
+  elevations[3], elevations[4]+1, presence_absence, F, x_lim, y_lim, title = "High Altitude")
+adonres_high_elevation <- check_significance(elevations[3], elevations[4]+1, presence_absence)
+adonres_high_elevation
+
+# overall_nmds_plot <- ggarrange(
+#                     plot_elevation1 + theme(legend.position="none"),
+#                     plot_elevation2 + theme(legend.position="none"),
+#                     plot_elevation3 + theme(legend.position="none"),
+#                     legend = "right",
+#                     common.legend = T,
+#                     nrow=1)
+
+ggsave("../Daten/Results/Successional Dynamics/Ordination/plot_low_elevation.png", plot_low_elevation)
+ggsave("../Daten/Results/Successional Dynamics/Ordination/plot_mid_elevation.png", plot_mid_elevation)
+ggsave("../Daten/Results/Successional Dynamics/Ordination/plot_high_elevation.png", plot_high_elevation)
+```

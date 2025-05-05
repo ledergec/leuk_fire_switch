@@ -1,0 +1,264 @@
+---
+title: "compute disturbance indicator values and assess correlation with existing systems"
+format: html
+---
+
+## This quarto document allows analysing the data from the leuk forest
+
+# Preparatory steps and data checking
+
+Load necessary libraries:
+```{r}
+library(readr)
+library(tidyr)
+library(dplyr)
+library(magrittr)
+library(mgcv)
+library(visreg)
+library(ggplot2)
+library(MASS)
+library(eHOF)
+```
+
+Read in the data an compute some basic metrics:
+```{r}
+species <- read_delim("../Daten/Intermediate/combined_data.csv")
+taxon_conversion <- read_delim("../Daten/Intermediate/leuk_landolt_try_midolo_eive_taxon_conversion.csv")
+species <- left_join(species, taxon_conversion, join_by(`Species_unified_2004-23` == infoflora_taxon))
+
+mosses <- read_csv("../Daten/Intermediate/moss_taxa.csv")
+species <- species[!(species$`Species_unified_2004-23` %in% mosses$moss_taxa),]
+
+unique_species <- unique(species$`Species_unified_2004-23`)
+number_of_unique_species <-  sum(!(endsWith(unique_species, "spec.") | endsWith(unique_species, "sp.")))
+number_of_different_years <- length(unique(species$year))
+number_of_different_global_id <- length(unique(species$global_id))
+
+# Beware! Not all plots have been done for all years!
+
+plots_with_partial_data <- species |> group_by(global_id) |> 
+  summarise(nyears = length(unique(year))) |>
+  filter(nyears != 6)
+
+species$year[species$year == "climax"] <- 2203
+species$year <- as.numeric(species$year)
+species$log_time_in_years <- species$year - 2004
+```
+
+There are `r number_of_unique_species` unique species which were observed on the plots.
+
+There are `r number_of_different_years` different years where data has been collected. The years are `r unique(species$year)`.
+
+There are `r number_of_different_global_id` different plots for which data has been collected. However, for plots `r toString(plots_with_partial_data)` the data has only been collected for some years.
+
+Checking the elevation of all plots. This seems reasonable:
+```{r}
+elevation_of_plots <- species |> group_by(global_id) |> 
+  summarise(elevation = mean(elevation_m))
+min(elevation_of_plots$elevation)
+max(elevation_of_plots$elevation)
+```
+
+# Reading in indicator values systems and computation of average indicator values per plot
+
+Read in EIVE indicator values and plot the distribution of them:
+```{r}
+eive <- read_delim("../Daten/EIVE/EIVE_Paper_1.0_SM_08.csv", ",")
+
+par(mfrow = c(1,1))
+boxplot(eive$`EIVEres-M`)
+boxplot(eive$`EIVEres-N`)
+boxplot(eive$`EIVEres-R`)
+boxplot(eive$`EIVEres-L`)
+boxplot(eive$`EIVEres-T`)
+```
+
+We check which species which were encountered on the plots are missing in EIVE:
+```{r}
+species_missing_in_eive <- sort(unique(species$`Species_unified_2004-23`[is.na(species$eive_taxa)]))
+
+number_of_plants_found_in_eive <- sum(!is.na(species$eive_taxa))
+percentage_of_plant_observation_with_eive_indicators <- 100*number_of_plants_found_in_eive/length(species$plotid)
+```
+
+There are `r length(species_missing_in_eive)` species out of `r number_of_unique_species` missing in EIVE. This seems like a lot! Strangely some seemingly common species are missing like Bromus sterilis. -> TODO check this!! Overall `r percentage_of_plant_observation_with_eive_indicators`% of the plant observations are present in EIVE.
+
+Extend the species vector with the EIVE values:
+```{r}
+species$EIVEresM <- eive$`EIVEres-M`[match(species$eive_taxa, eive$TaxonConcept)]
+species$EIVEresN <- eive$`EIVEres-N`[match(species$eive_taxa, eive$TaxonConcept)]
+species$EIVEresR <- eive$`EIVEres-R`[match(species$eive_taxa, eive$TaxonConcept)]
+species$EIVEresL <- eive$`EIVEres-L`[match(species$eive_taxa, eive$TaxonConcept)]
+species$EIVEresT <- eive$`EIVEres-T`[match(species$eive_taxa, eive$TaxonConcept)]
+```
+
+Read in the disturbance data from midolo et al and transfrom it so its not so scewed anymore:
+```{r}
+div <- read_delim("../Daten/Disturbance Indicator Values/disturbance_indicator_values.csv", ",")
+
+par(mfrow = c(1,1))
+boxplot(div$Disturbance.Severity)
+boxplot(div$Disturbance.Frequency)
+```
+
+Add a column to the species data with the disturbance indicators:
+```{r}
+species$Disturbance.Severity <- div$Disturbance.Severity[match(species$midolo_taxa, div$species)]
+species$Disturbance.Frequency <- div$Disturbance.Frequency[match(species$midolo_taxa, div$species)]
+
+number_of_plants_found_in_div <- sum(!is.na(species$Disturbance.Severity))
+percentage_of_plant_observation_with_disturbance_indicators <- 100*number_of_plants_found_in_div/length(species$Disturbance.Severity)
+```
+
+
+There are `r percentage_of_plant_observation_with_disturbance_indicators`% of the species observations are found in midolo data.
+
+Compute the average indicator values per releve (separate for every year):
+```{r}
+computeSquareRootWeightedMean <- function(indicatorValue, coverage) {
+  weights <- sqrt(coverage[!is.na(indicatorValue)])
+  indicators <- indicatorValue[!is.na(indicatorValue)]
+  weighted.mean(indicators, weights)
+}
+
+aggregated <- species |> 
+  group_by(global_id, year) |> 
+  summarise(
+    species_richness = n(), 
+    EIVEresM.sqrt = computeSquareRootWeightedMean(EIVEresM, percentage200), 
+    EIVEresN.sqrt = computeSquareRootWeightedMean(EIVEresN, percentage200), 
+    EIVEresR.sqrt = computeSquareRootWeightedMean(EIVEresR, percentage200), 
+    EIVEresL.sqrt = computeSquareRootWeightedMean(EIVEresL, percentage200),
+    EIVEresT.sqrt = computeSquareRootWeightedMean(EIVEresT, percentage200),
+    
+    EIVEresM = mean(EIVEresM, na.rm = T), 
+    EIVEresN = mean(EIVEresN, na.rm = T), 
+    EIVEresR = mean(EIVEresR, na.rm = T), 
+    EIVEresL = mean(EIVEresL, na.rm = T), 
+    EIVEresT = mean(EIVEresT, na.rm = T), 
+    
+    DistSeverity.sqrt = computeSquareRootWeightedMean(Disturbance.Severity, percentage200), 
+    DistFrequency.sqrt = computeSquareRootWeightedMean(Disturbance.Frequency, percentage200),
+
+    DistSeverity = mean(Disturbance.Severity, na.rm = T),
+    DistFrequency = mean(Disturbance.Frequency, na.rm = T),
+    
+    elevation = mean(elevation_m, rm.na = T),
+  )
+aggregated$plot_no <- as.factor(aggregated$global_id)
+```
+
+# Simple plots showing the raw indicator value data per plot in two different ways
+
+For every plot, show the trajectory of the indicator values across all years:
+```{r}
+plots_to_include <- unique(aggregated$plot_no)[seq(1, length(unique(aggregated$plot_no)), 10)]
+aggregated_selection <- aggregated[aggregated$plot_no %in% plots_to_include,]
+plot_evolution_of_indicator_value_for_all_plots <- function(data, indicator_value) {
+  ggplot(data = data, mapping = aes(x = year, y = .data[[indicator_value]], color = elevation)) + 
+  geom_point() + 
+  geom_line() + 
+  facet_wrap(~ plot_no)
+}
+
+plot_evolution_of_indicator_value_for_all_plots(aggregated_selection, "EIVEresM")
+plot_evolution_of_indicator_value_for_all_plots(aggregated_selection, "EIVEresM")
+plot_evolution_of_indicator_value_for_all_plots(aggregated_selection, "EIVEresN")
+plot_evolution_of_indicator_value_for_all_plots(aggregated_selection, "EIVEresR")
+plot_evolution_of_indicator_value_for_all_plots(aggregated_selection, "EIVEresL")
+plot_evolution_of_indicator_value_for_all_plots(aggregated_selection, "EIVEresT")
+plot_evolution_of_indicator_value_for_all_plots(aggregated_selection, "DistFrequency")
+plot_evolution_of_indicator_value_for_all_plots(aggregated_selection, "DistSeverity")
+plot_evolution_of_indicator_value_for_all_plots(aggregated_selection, "species_richness")
+```
+
+For all years, show the correlation between the indicator values and altitude:
+```{r}
+aggregated$year <- aggregated$year
+plot_for_every_year_elevation_iv_correlation <- function(data, indicator_value) {
+ggplot(data = aggregated, mapping = aes(x = elevation, y = .data[[indicator_value]])) + 
+  geom_point() + 
+  geom_smooth(method='lm', formula= y~x) +
+  facet_wrap(~ year)
+}
+
+plot_for_every_year_elevation_iv_correlation(aggregated, "EIVEresM")
+plot_for_every_year_elevation_iv_correlation(aggregated, "EIVEresN")
+plot_for_every_year_elevation_iv_correlation(aggregated, "EIVEresR")
+plot_for_every_year_elevation_iv_correlation(aggregated, "EIVEresL")
+plot_for_every_year_elevation_iv_correlation(aggregated, "EIVEresT")
+plot_for_every_year_elevation_iv_correlation(aggregated, "DistFrequency")
+plot_for_every_year_elevation_iv_correlation(aggregated, "DistSeverity")
+```
+
+# GAMM model optimization and visualization for indicator values evolution over time and elevational gradient
+
+I was planning to fit a non linear least squares model with the following function:
+indicator value = (A0 + A1*h) + (B0 + B1*h)e^-(C0 + C1*h)*t. This would model a convergence of the indicator values. However, the above data exploration shows rather that the indicator values overshoot and after this converge. Since I don't know an appropriate function to model this I used a generalized additive mixed effect model and visualize it. This more or less confirms what we see above.
+
+In the gamm we can choose the degrees of freedom for the generalized term which chooses the year. Below I choose the degree of freedom with the lowest AIC. We also print a summary of the model showing the significance of the terms.
+
+```{r}
+aggregated$logyear <- log(as.numeric(aggregated$year - 2003))
+aggregated$elevation <- as.numeric(aggregated$elevation)
+
+select_model_with_optimal_df <- function(data, indicator_value, family) {
+  minAic <- Inf
+  minModel <- NULL
+  minDf <- 0
+  
+  for(degrees_of_freedom in seq(3,6,1)) {
+    formula_string <- paste(indicator_value, " ~ 
+                elevation + 
+                s(logyear, bs = 'tp',k=", degrees_of_freedom, ") +
+                s(plot_no, bs=\"re\")")
+
+    model <- bam(as.formula(formula_string),
+                data = aggregated,
+                method = 'fREML',
+                family = family,
+                discrete=TRUE)
+    aic <- AIC(model)
+    
+    if(aic < minAic - 2) {
+      minAic <- aic
+      minDf <- degrees_of_freedom
+      minModel <- model
+    }
+  }
+  minModel
+}
+
+fit_gamm_and_visualize <- function(data, indicator_value, family) {
+  model <- select_model_with_optimal_df(data, indicator_value, family)
+  visreg(model, xvar = "logyear", by = "elevation", scale = "response", log = "x")
+  model
+}
+
+summary(fit_gamm_and_visualize(aggregated, "EIVEresM", 'gaussian'))
+summary(fit_gamm_and_visualize(aggregated, "EIVEresN", 'gaussian'))
+summary(fit_gamm_and_visualize(aggregated, "EIVEresR", 'gaussian'))
+summary(fit_gamm_and_visualize(aggregated, "EIVEresL", 'gaussian'))
+summary(fit_gamm_and_visualize(aggregated, "EIVEresT", 'gaussian'))
+summary(fit_gamm_and_visualize(aggregated, "DistFrequency", 'gaussian'))
+summary(fit_gamm_and_visualize(aggregated, "DistSeverity", 'gaussian'))
+```
+
+Just to make sure its not all screwed due to a lack of weighting with the cover of the species:
+```{r}
+summary(fit_gamm_and_visualize(aggregated, "EIVEresM.sqrt", 'gaussian'))
+summary(fit_gamm_and_visualize(aggregated, "EIVEresN.sqrt", 'gaussian'))
+summary(fit_gamm_and_visualize(aggregated, "EIVEresR.sqrt", 'gaussian'))
+summary(fit_gamm_and_visualize(aggregated, "EIVEresL.sqrt", 'gaussian'))
+summary(fit_gamm_and_visualize(aggregated, "EIVEresT.sqrt", 'gaussian'))
+summary(fit_gamm_and_visualize(aggregated, "DistFrequency.sqrt", 'gaussian'))
+summary(fit_gamm_and_visualize(aggregated, "DistSeverity.sqrt", 'gaussian'))
+```
+
+Do the same for species richness, but with a log link and poisson distribution since the number of species is count data:
+```{r}
+summary(fit_gamm_and_visualize(aggregated, "species_richness", 'poisson'))
+```
+
+In other words: the species richness seems to be converging to a maximum. There is no sign of decline when approaching the climax vegetation. It will be interesting to see whats the species richness of the "original" vegetation! The higher up the slope the higher the richness of the plots.
+
