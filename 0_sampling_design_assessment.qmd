@@ -154,14 +154,15 @@ library(raster)
 library(rgdal)
 library(devtools)
 
-rel <- brick("../Daten/QGIS/swiss-map-raster25-clipped.tif")
-plotRGB(rel)
+p <- png(filename = "../Daten/Results/Sampling Design Assessement/plots2.png", width = 2581, height = 2628, res = 72)
+rel <- rast("../Daten/QGIS/swiss-map-raster25-clipped.tif")
+raster::plotRGB(rel, smooth = T, maxpixels = 2628*2581*2)
 raster$color[raster$sampled] <- "red"
 raster$color[raster$total] <- "blue"
-raster$color[raster$on_patch] <- "black"
-raster$color[raster$additional] <- "magenta"
-raster$color[!raster$sampled & !raster$total & !raster$on_patch] <- ""
-points(x = raster$x_coord[raster$sampled | raster$total | raster$on_patch], y = raster$y_coord[raster$sampled | raster$total | raster$on_patch], col = raster$color[raster$sampled | raster$total | raster$on_patch], type = "p" )
+raster$color[raster$additional] <- "blue"
+raster$color[!raster$sampled & !raster$total] <- ""
+points(x = raster$x_coord[raster$sampled | raster$total], y = raster$y_coord[raster$sampled | raster$total], col = raster$color[raster$sampled | raster$total], pch = 15, cex = 7)
+dev.off()
 
 # add labels with global ids to the plots
 text(x = raster$x_coord, y = raster$y_coord, as.character(raster$global_id), col = "black")
