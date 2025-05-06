@@ -891,8 +891,6 @@ final_data <- data[0,] # create new data frame with same columns as data
 for(year in unique(data$year)) {
   for(global_id in unique(data$global_id[data$year == year])) {
     for(layer in unique(data$layer[data$year == year & data$global_id == global_id])) {
-      data[data$year == year & data$global_id == global_id & data$layer == 3,]
-      
       subset <- data[data$year == year & data$global_id == global_id & data$layer == layer,]
       for(taxon in unique(subset$`Species_unified_2004-23`)) {
         new_row <- subset[subset$`Species_unified_2004-23` == taxon,]
