@@ -580,6 +580,235 @@ names(data)[names(data) == "bodentiefemittel04"] = c("mean_soil_depth")
 names(data)[names(data) == "bodentiefemedian04"] = c("median_soil_depth")
 ```
 
+Add data preceeding the fire from goedickemeier:
+```{r}
+goedickemeier_header <- read_csv("../Daten/Leuk/Goedickemeier/kopf_daten.csv")
+goedickemeier_header$plot.id <- as.numeric(sub('^IG', '', goedickemeier_header$plot.id))
+goedickemeier_header$year <- floor(goedickemeier_header$plot.id / 1000) + 1900
+goedickemeier_header$plot_no <- NA
+names(goedickemeier_header)[1] <- "global_id"
+names(goedickemeier_header)[5] <- "elevation_m"
+goedickemeier_header <- goedickemeier_header[,c(1,9,8,3,4,5)]
+
+goedickemeier_species <- read_csv("../Daten/Leuk/Goedickemeier/artenliste.csv")
+goedick_species <- unique(goedickemeier_species$Arten.ISFS)
+goedick_species <- sub(' sp\\.', ' spec.', goedick_species)
+goedick_species[(!grepl("subsp.", goedick_species)) & (!grepl("aggr.", goedick_species))] <- word(goedick_species[(!grepl("subsp.", goedick_species)) & (!grepl("aggr.", goedick_species))], 1,2, sep=" ")
+goedick_species[grepl("subsp.", goedick_species)] <- word(goedick_species[grepl("subsp.", goedick_species)], 1,4, sep=" ")
+goedick_species[grepl("aggr.", goedick_species)] <- word(goedick_species[grepl("aggr.", goedick_species)], 1,3, sep=" ")
+
+goedick_species[goedick_species == "Stipa spec."] <- "Stipa pennata aggr."
+goedick_species[goedick_species == "Vaccinium uliginosum"] <- "Vaccinium gaultherioides"
+goedick_species[goedick_species == "Tripleurospermum perforatum"] <- "Tripleurospermum inodorum"
+goedick_species[goedick_species == "Stellaria media aggr."] <- "Stellaria media"
+goedick_species[goedick_species == "Senecio capitatus"] <- "Tephroseris capitata"
+goedick_species[goedick_species == "Scorzonera laciniata"] <- "Scorzonera laciniata subsp. laciniata"
+goedick_species[goedick_species == "Scabiosa columbaria"] <- "Scabiosa columbaria subsp. columbaria"
+goedick_species[goedick_species == "Sagina apetala"] <- "Sagina apetala subsp. apetala"
+goedick_species[goedick_species == "Ranunculus nemorosus aggr."] <- "Ranunculus tuberosus"
+goedick_species[goedick_species == "Ranunculus acris"] <- "Ranunculus acris subsp. friesianus"
+goedick_species[goedick_species == "Prunus padus"] <- "Prunus padus subsp. padus"
+goedick_species[goedick_species == "Potentilla neumanniana"] <- "Potentilla verna"
+goedick_species[goedick_species == "Populus nigra"] <- "Populus nigra aggr."
+goedick_species[goedick_species == "Polygonum aviculare"] <- "Polygonum aviculare aggr."
+goedick_species[goedick_species == "Poa violacea"] <- "Poa variegata"
+goedick_species[goedick_species == "Peucedanum austriacum aggr."] <- "Peucedanum austriacum susp. austriacum"
+goedick_species[goedick_species == "Ononis spinosa"] <- "Ononis spinosa aggr."
+goedick_species[goedick_species == "Nigritella nigra aggr."] <- "Nigritella rhellicani"
+goedick_species[goedick_species == "Luzula sylvatica"] <- "Luzula sylvatica aggr."
+goedick_species[goedick_species == "Luzula luzuloides"] <- "Luzula luzuloides subsp. luzuloides"
+goedick_species[goedick_species == "Hypochaeris uniflora"] <- "Hypochaeris uniflora aggr."
+goedick_species[goedick_species == "Hieracium villosum"] <- "Hieracium villosum aggr."
+goedick_species[goedick_species == "Hieracium sabaudum"] <- "Hieracium sabaudum aggr."
+goedick_species[goedick_species == "Hieracium prenanthoides"] <- "Hieracium prenanthoides aggr."
+goedick_species[goedick_species == "Hieracium murorum"] <- "Hieracium murorum aggr."
+goedick_species[goedick_species == "Globularia punctata"] <- "Globularia bisnagarica"
+goedick_species[goedick_species == "Galium pumilum"] <- "Galium pumilum aggr."
+goedick_species[goedick_species == "Galium anisophyllon"] <- "Galium pumilum aggr."
+goedick_species[goedick_species == "Galium album"] <- "Galium mollugo aggr."
+goedick_species[goedick_species == "Festuca valesiaca aggr."] <- "Festuca valesiaca"
+goedick_species[goedick_species == "Festuca alpina"] <- "Festuca halleri aggr."
+goedick_species[goedick_species == "Euphrasia rostkoviana"] <- "Euphrasia rostkoviana subsp. rostkoviana"
+goedick_species[goedick_species == "Erysimum rhaeticum"] <- "Erysimum rhaeticum aggr."
+goedick_species[goedick_species == "Erigeron acer"] <- "Erigeron acris"
+goedick_species[goedick_species == "Erigeron alpinus"] <- "Erigeron alpinus aggr."
+goedick_species[goedick_species == "Erigeron polymorphus"] <- "Erigeron glabratus"
+goedick_species[goedick_species == "Erigeron neglectus"] <- "Erigeron alpinus aggr."
+goedick_species[goedick_species == "Dactylorhiza maculata aggr."] <- "Dactylorhiza maculata subsp. fuchsii"
+goedick_species[goedick_species == "Centaurea paniculata aggr."] <- "Centaurea paniculata"
+goedick_species[goedick_species == "Carex pairae"] <- "Carex muricata aggr."
+goedick_species[goedick_species == "Carduus nutans subsp. platylepis"] <- "Carduus nutans"
+goedick_species[goedick_species == "Brachypodium pinnatum"] <- "Brachypodium rupestre"
+goedick_species[goedick_species == "Amaranthus cruentus"] <- "Amaranthus hypochondriacus" # same aggregate, but cruentus has not been seen anywhere near by!
+goedick_species[goedick_species == "Agropyron repens"] <- "Elymus repens"
+goedick_species[goedick_species == "Agropyron caninum"] <- "Elymus caninus"
+goedick_species[goedick_species == "Agropyron intermedium"] <- "Elymus hispidus"
+goedick_species[goedick_species == "Adenostyles glabra"] <- "Adenostyles alpina"
+goedick_species[goedick_species == "Aconitum vulparia aggr."] <- "Aconitum lycoctonum"
+goedick_species[goedick_species == "Achillea millefolium"] <- "Achillea millefolium aggr."
+goedick_species[goedick_species == "Sorbus mougeotii"] <- "Sorbus aria aggr."
+goedick_species[goedick_species == "Sorbus aria"] <- "Sorbus aria aggr."
+goedick_species[goedick_species == "Rosa canina"] <- "Rosa canina aggr."
+goedick_species[goedick_species == "Juniperus communis subsp. nana"] <- "Juniperus communis subsp. alpina"
+
+# Code used to check which species are new in goedickemeier
+# # Accepted new species in goedickemeier
+# new_species <- c(
+#   "Veronica montana",
+#   "Veronica bellidioides",
+#   "Veratrum album",
+#   "Valeriana officinalis aggr.",
+#   "Trisetum spicatum",
+#   "Thesium linophyllon",
+#   "Thalictrum minus",
+#   "Thalictrum foetidum",
+#   "Tephroseris capitata",
+#   "Stachys sylvatica",
+#   "Stachys alpina",
+#   "Silene acaulis",
+#   "Senecio spec.",
+#   "Senecio ovatus",
+#   "Sempervivum spec.",
+#   "Scrophularia nodosa",
+#   "Scleranthus perennis",
+#   "Saxifraga rotundifolia",
+#   "Saxifraga exarata",
+#   "Saxifraga cuneifolia",
+#   "Saxifraga aizoides",
+#   "Salvia glutinosa",
+#   "Salix serpillifolia",
+#   "Salix retusa",
+#   "Salix reticulata",
+#   "Salix herbacea",
+#   "Salix breviserrata",
+#   "Rhinanthus minor",
+#   "Ranunculus platanifolius",
+#   "Ranunculus alpestris",
+#   "Ranunculus aconitifolius",
+#   "Pulmonaria mollis aggr.",
+#   "Primula veris",
+#   "Primula farinosa",
+#   "Potentilla erecta",
+#   "Polystichum aculeatum",
+#   "Polygala comosa",
+#   "Poa variegata",
+#   "Poa hybrida",
+#   "Phegopteris connectilis",
+#   "Peucedanum austriacum susp. austriacum",
+#   "Pedicularis spec.",
+#   "Onobrychis montana",
+#   "Nasturtium officinale",
+#   "Myosotis stricta",
+#   "Meum athamanticum",
+#   "Mentha longifolia",
+#   "Luzula sudetica",
+#   "Luzula campestris",
+#   "Loiseleuria procumbens",
+#   "Lathyrus sylvestris",
+#   "Lamium galeobdolon",
+#   "Knautia arvensis",
+#   "Juncus articulatus",
+#   "Himantoglossum hircinum",
+#   "Hieracium intybaceum",
+#   "Helianthus annuus",
+#   "Helianthemum alpestre",
+#   "Hedysarum hedysaroides",
+#   "Gypsophila repens",
+#   "Gnaphalium norvegicum",
+#   "Geum reptans",
+#   "Geum rivale",
+#   "Geranium spec.",
+#   "Geranium phaeum",
+#   "Geranium bohemicum",
+#   "Gentiana tenella",
+#   "Gentiana clusii",
+#   "Gentiana asclepiadea",
+#   "Galium boreale",
+#   "Festuca quadriflora",
+#   "Festuca pulchella",
+#   "Erigeron glabratus",
+#   "Equisetum sylvaticum",
+#   "Equisetum arvense",
+#   "Dryopteris dilatata",
+#   "Draba muralis",
+#   "Crocus albiflorus",
+#   "Corallorhiza trifida",
+#   "Cirsium oleraceum",
+#   "Chenopodium bonus-henricus",
+#   "Cerastium latifolium",
+#   "Centaurea montana",
+#   "Carex paniculata",
+#   "Carex sylvatica",
+#   "Carex hirta",
+#   "Carex brunnescens",
+#   "Carex bicolor",
+#   "Carduus spec.",
+#   "Campanula trachelium",
+#   "Campanula spicata",
+#   "Calamintha nepeta aggr.",
+#   "Calamintha grandiflora",
+#   "Stachys officinalis",
+#   "Athyrium filix-femina",
+#   "Astragalus cicer",
+#   "Aruncus dioicus",
+#   "Arenaria ciliata aggr.",
+#   "Arabidopsis thaliana",
+#   "Anthriscus sylvestris",
+#   "Anthericum ramosum",
+#   "Antennaria carpatica",
+#   "Anemone baldensis",
+#   "Androsace chamaejasme",
+#   "Allium spec.",
+#   "Alchemilla splendens aggr.",
+#   "Alchemilla firma aggr.",
+#   "Agrostis alpina",
+#   "Agrimonia eupatoria",
+#   "Achillea macrophylla",
+#   "Juniperus communis subsp. alpina",
+#   "Humulus lupulus",
+#   "Alnus viridis")
+# 
+# species <- unique(sub(' cf\\.', '', data$`Species_unified_2004-23`))
+# 
+# goedick_species[!goedick_species %in% species & !(goedick_species %in% new_species)]
+# species[startsWith(species, "Alnus")]
+# goedick_species[startsWith(goedick_species, "Juniperus")]
+
+goedick_to_backbone_species <- data.frame(goedick = unique(goedickemeier_species$Arten.ISFS), backbone = goedick_species)
+noISFS_to_backbone <- left_join(goedickemeier_species, goedick_to_backbone_species, join_by(Arten.ISFS == goedick))
+noISFS_to_backbone <- distinct(noISFS_to_backbone, No.ISFS, .keep_all = T)[,c(2,7)]
+names(noISFS_to_backbone)[2] <- "Species_unified_2004-23"
+
+incidence_matrix <- left_join(read_csv("../Daten/Leuk/Goedickemeier/NoISFS.csv"),noISFS_to_backbone, join_by(no_ISFS == No.ISFS))
+incidence_matrix <- incidence_matrix[,c(ncol(incidence_matrix), 1, 4:(ncol(incidence_matrix) - 1))]
+
+goedickemeier_table <- data.frame(global_id = character(), `Species_unified_2004-23` = character(), layer = numeric(), percentage200 = double())
+names(goedickemeier_table)[2] <- "Species_unified_2004-23"
+for(i in 3:ncol(incidence_matrix)) {
+  subset <- incidence_matrix[incidence_matrix[,i]>0,]
+  for(j in 1:nrow(subset)) {
+    goedickemeier_table <- add_row(goedickemeier_table, global_id = names(incidence_matrix)[i], `Species_unified_2004-23` = subset$`Species_unified_2004-23`[j], layer = subset$layer[j], percentage200 = subset[j,i,1])
+  }
+}
+goedickemeier_table[,1] <- as.numeric(sub('^IG', '', goedickemeier_table[,1]))
+goedickemeier_full_data <- full_join(goedickemeier_header, goedickemeier_table, join_by(global_id))
+goedickemeier_full_data$a1 <- NA
+goedickemeier_full_data$a10 <- NA
+goedickemeier_full_data$b1 <- NA
+goedickemeier_full_data$b10 <- NA
+goedickemeier_full_data$c1 <- NA
+goedickemeier_full_data$c10 <- NA
+goedickemeier_full_data$d1 <- NA
+goedickemeier_full_data$d10 <- NA
+goedickemeier_full_data$distance_forest <- NA
+goedickemeier_full_data$mean_asches_depth <- NA
+goedickemeier_full_data$median_asches_depth <- NA
+goedickemeier_full_data$mean_soil_depth <- NA
+goedickemeier_full_data$median_soil_depth <- NA
+
+data <- rbind(data, goedickemeier_full_data)
+```
+
 Compute average species richness per year
 ```{r}
 data_without_spec <- data[!endsWith(data$`Species_unified_2004-23`, "spec."),]
@@ -605,6 +834,8 @@ data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Alchemilla alp
 
 data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Alchemilla cf. vulgaris aggr."] <- "Alchemilla vulgaris aggr. s.l."
 data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Alchemilla vulgaris aggr."] <- "Alchemilla vulgaris aggr. s.l."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Alchemilla splendens aggr."] <- "Alchemilla vulgaris aggr. s.l."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Alchemilla firma aggr."] <- "Alchemilla vulgaris aggr. s.l."
 data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Alchemilla glabra aggr."] <- "Alchemilla vulgaris aggr. s.l."
 data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Alchemilla hybrida aggr."] <- "Alchemilla vulgaris aggr. s.l."
 data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Alchemilla fissa aggr."] <- "Alchemilla vulgaris aggr. s.l."
