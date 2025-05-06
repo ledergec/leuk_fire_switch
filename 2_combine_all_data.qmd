@@ -593,6 +593,7 @@ goedickemeier_header <- goedickemeier_header[,c(1,9,8,3,4,5)]
 goedickemeier_species <- read_csv("../Daten/Leuk/Goedickemeier/artenliste.csv")
 goedick_species <- unique(goedickemeier_species$Arten.ISFS)
 goedick_species <- sub(' sp\\.', ' spec.', goedick_species)
+goedick_species <- sub('^df\\. ', '', goedick_species)
 goedick_species[(!grepl("subsp.", goedick_species)) & (!grepl("aggr.", goedick_species))] <- word(goedick_species[(!grepl("subsp.", goedick_species)) & (!grepl("aggr.", goedick_species))], 1,2, sep=" ")
 goedick_species[grepl("subsp.", goedick_species)] <- word(goedick_species[grepl("subsp.", goedick_species)], 1,4, sep=" ")
 goedick_species[grepl("aggr.", goedick_species)] <- word(goedick_species[grepl("aggr.", goedick_species)], 1,3, sep=" ")
