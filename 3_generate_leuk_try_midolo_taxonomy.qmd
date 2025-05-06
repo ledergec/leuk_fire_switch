@@ -186,10 +186,6 @@ replacements <- add_row(replacements, old = "Ononis repens", new = "Ononis spino
 replacements <- add_row(replacements, old = "Salix appendiculata / caprea", new = "Salix appendiculata")
 replacements <- add_row(replacements, old = "Populus ×canescens", new = "Populus canescens") # remove hybrid sign?
 
-# bugfixes in Leuk data
-replacements <- add_row(replacements, old = "Nigritelle rhellicani", new = "Nigritella rhellicani")
-replacements <- add_row(replacements, old = "Vicia sativa L.", new = "Vicia sativa")
-
 m <- match(replacements$old, species)
 species[m[!is.na(m)]] <- replacements$new[!is.na(m)]
 
