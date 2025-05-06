@@ -105,6 +105,17 @@ replacements <- add_row(replacements, old = "Ononis repens", new = "Ononis spino
 replacements <- add_row(replacements, old = "Muscari comosum", new = "Leopoldia comosa")
 replacements <- add_row(replacements, old = "Centaurea valesiaca", new = "Centaurea vallesiaca")
 replacements <- add_row(replacements, old = "Stipa eriocaulis", new = "Stipa pennata subsp. pennata")
+replacements <- add_row(replacements, old = "Juniperus communis subsp. alpina", new = "Juniperus communis var. saxatilis")
+replacements <- add_row(replacements, old = "Salix serpillifolia", new = "Salix serpyllifolia")
+replacements <- add_row(replacements, old = "Alnus viridis", new = "Alnus alnobetula subsp. alnobetula")
+replacements <- add_row(replacements, old = "Nigritella rhellicani", new = "Gymnadenia rhellicani")
+replacements <- add_row(replacements, old = "Loiseleuria procumbens", new = "Kalmia procumbens")
+replacements <- add_row(replacements, old = "Tephroseris capitata", new = "Tephroseris integrifolia subsp. capitata")
+replacements <- add_row(replacements, old = "Androsace chamaejasme", new = "Androsace villosa subsp. villosa")
+replacements <- add_row(replacements, old = "Centaurea montana", new = "Cyanus montanus")
+replacements <- add_row(replacements, old = "Chenopodium bonus-henricus", new = "Blitum bonus-henricus")
+replacements <- add_row(replacements, old = "Thesium linophyllon", new = "Thesium arvense")
+replacements <- add_row(replacements, old = "Crocus albiflorus", new = "Crocus vernus")
 
 m <- match(replacements$old, species)
 species[m[!is.na(m)]] <- replacements$new[!is.na(m)]
@@ -118,7 +129,7 @@ mosses <- read_csv("../Daten/Leuk/Hand Curated/moss_taxa.csv")
 
 species <- species[!species %in% mosses]
 
-inexistent <- c("Potentilla verna", "Capsella bursa-pastoris", "Molinia arundinacea", "Itea virginica L.", "Caryophyllaceae sp", "Populus ×canescens", "Amaranthaceae sp", "Einjährig", "Flache lange blätter", "Poaceae", "Caryophyllaceae", "A10", "Asteraceae", "Pflanze", "Keimling 1", "Keimling 2", "Runde blätter", "Sedum montanum", "Lamiaceae", "Apiaceae", "Amelanchier humilis")
+inexistent <- c("Potentilla verna / pusilla", "Capsella bursa-pastoris", "Molinia arundinacea", "Itea virginica L.", "Caryophyllaceae sp", "Populus ×canescens", "Amaranthaceae sp", "Einjährig", "Flache lange blätter", "Poaceae", "Caryophyllaceae", "A10", "Asteraceae", "Pflanze", "Keimling 1", "Keimling 2", "Runde blätter", "Sedum montanum", "Lamiaceae", "Apiaceae", "Amelanchier humilis", "Pulmonaria australis / mollis", "Gehölz unbekannt", "Rubus fruticosus aggr. s.l.", "Alchemilla alpina aggr. s.l.", "Eudicot sp", "Viola reichenbachiana / riviniana", "Alchemilla vulgaris aggr. s.l.", "Peucedanum austriacum susp. austriacum", "Apiaceae sp")
 species <- species[!species %in% inexistent]
 
 "Leontodon helveticus" %in% try_species_list$AccSpeciesName
