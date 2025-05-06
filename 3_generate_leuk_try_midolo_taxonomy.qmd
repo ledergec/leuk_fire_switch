@@ -334,9 +334,6 @@ replacements <- add_row(replacements, old = "Pinus mugo", new = "Pinus mugo subs
 # specializations
 replacements <- add_row(replacements, old = "Salix appendiculata / caprea", new = "Salix appendiculata")
 
-# bugfixes in Leuk data
-replacements <- add_row(replacements, old = "Vicia sativa L.", new = "Vicia sativa")
-
 # synonyms
 replacements <- add_row(replacements, old = "Chenopodium hybridum", new = "Chenopodiastrum hybridum")
 replacements <- add_row(replacements, old = "Hieracium pilosella", new = "Pilosella officinarum")
@@ -355,7 +352,7 @@ replacements <- add_row(replacements, old = "Hieracium lactucella", new = "Pilos
 replacements <- add_row(replacements, old = "Orchis ustulata", new = "Neotinea ustulata")
 replacements <- add_row(replacements, old = "Poa molinerii", new = "Poa perconcinna")
 replacements <- add_row(replacements, old = "Polygonum viviparum", new = "Bistorta vivipara")
-replacements <- add_row(replacements, old = "Nigritelle rhellicani", new = "Gymnadenia rhellicani")
+replacements <- add_row(replacements, old = "Nigritella rhellicani", new = "Gymnadenia rhellicani")
 replacements <- add_row(replacements, old = "Leontodon helveticus", new = "Scorzoneroides helvetica")
 replacements <- add_row(replacements, old = "Plantago serpentina", new = "Plantago subulata")
 replacements <- add_row(replacements, old = "Coeloglossum viride", new = "Dactylorhiza viridis")
@@ -512,9 +509,6 @@ replacements <- add_row(replacements, old = "Peucedanum austriacum susp. austria
 # specializations
 replacements <- add_row(replacements, old = "Salix appendiculata / caprea", new = "Salix appendiculata")
 
-# bugfixes in Leuk data
-replacements <- add_row(replacements, old = "Vicia sativa L.", new = "Vicia sativa")
-
 # synonyms
 replacements <- add_row(replacements, old = "Chenopodium hybridum", new = "Chenopodiastrum hybridum")
 replacements <- add_row(replacements, old = "Hieracium pilosella", new = "Pilosella officinarum")
@@ -550,7 +544,7 @@ replacements <- add_row(replacements, old = "Bromus benekenii", new = "Bromopsis
 replacements <- add_row(replacements, old = "Veronica teucrium", new = "Veronica austriaca subsp. teucrium")
 replacements <- add_row(replacements, old = "Aster bellidiastrum", new = "Bellidiastrum michelii")
 replacements <- add_row(replacements, old = "Poa supina", new = "Ochlopoa supina")
-replacements <- add_row(replacements, old = "Nigritelle rhellicani", new = "Gymnadenia rhellicani")
+replacements <- add_row(replacements, old = "Nigritella rhellicani", new = "Gymnadenia rhellicani")
 replacements <- add_row(replacements, old = "Leontodon helveticus", new = "Scorzoneroides helvetica")
 replacements <- add_row(replacements, old = "Rumex alpestris", new = "Rumex scutatus")
 replacements <- add_row(replacements, old = "Coeloglossum viride", new = "Dactylorhiza viridis")
