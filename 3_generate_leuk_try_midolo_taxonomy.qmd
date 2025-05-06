@@ -491,6 +491,7 @@ replacements <- add_row(replacements, old = "Hieracium laevigatum aggr.", new = 
 replacements <- add_row(replacements, old = "Festuca halleri aggr.", new = "Festuca halleri")
 replacements <- add_row(replacements, old = "Festuca valesiaca aggr.", new = "Festuca valesiaca")
 replacements <- add_row(replacements, old = "Hieracium glaucinum aggr.", new = "Hieracium glaucinum")
+replacements <- add_row(replacements, old = "Pulmonaria mollis aggr.", new = "Pulmonaria mollis")
 
 # adding aggr.
 replacements <- add_row(replacements, old = "Dactylorhiza maculata subsp. fuchsii", new = "Dactylorhiza maculata aggr.")
@@ -504,6 +505,7 @@ replacements <- add_row(replacements, old = "Sagina apetala subsp. apetala", new
 replacements <- add_row(replacements, old = "Laserpitium gaudinii", new = "Laserpitium krapfii")
 replacements <- add_row(replacements, old = "Veronica prostrata subsp. prostrata", new = "Veronica prostrata")
 replacements <- add_row(replacements, old = "Viola canina subsp. montana", new = "Viola canina")
+replacements <- add_row(replacements, old = "Peucedanum austriacum susp. austriacum", new = "Peucedanum austriacum")
 
 # add subsp.
 
@@ -565,6 +567,16 @@ replacements <- add_row(replacements, old = "Polygonum viviparum", new = "Bistor
 replacements <- add_row(replacements, old = "Plantago serpentina", new = "Plantago maritima subsp. serpentina")
 replacements <- add_row(replacements, old = "Rubus fruticosus aggr.", new = "Rubus plicatus") # questionable renaming
 replacements <- add_row(replacements, old = "Muscari comosum", new = "Leopoldia comosa")
+replacements <- add_row(replacements, old = "Crocus albiflorus", new = "Crocus vernus")
+replacements <- add_row(replacements, old = "Hieracium intybaceum", new = "Schlagintweitia intybacea")
+replacements <- add_row(replacements, old = "Tephroseris capitata", new = "Tephroseris integrifolia")
+replacements <- add_row(replacements, old = "Festuca pulchella", new = "Leucopoa pulchella")
+replacements <- add_row(replacements, old = "Draba muralis", new = "Drabella muralis")
+replacements <- add_row(replacements, old = "Poa variegata", new = "Bellardiochloa variegata")
+replacements <- add_row(replacements, old = "Chenopodium bonus-henricus", new = "Blitum bonus-henricus")
+replacements <- add_row(replacements, old = "Juniperus communis subsp. alpina", new = "Juniperus communis subsp. nana")
+replacements <- add_row(replacements, old = "Centaurea montana", new = "Cyanus montanus")
+replacements <- add_row(replacements, old = "Ranunculus tuberosus", new = "Ranunculus montanus")
 
 m <- match(replacements$old, species)
 species[m[!is.na(m)]] <- replacements$new[!is.na(m)]
@@ -589,6 +601,14 @@ inexistent <- append(inexistent, "Keimling 2")
 inexistent <- append(inexistent, "Pflanze")
 inexistent <- append(inexistent, "Amelanchier humilis")
 inexistent <- append(inexistent, "Ononis repens")
+inexistent <- append(inexistent, "Gehölz unbekannt")
+inexistent <- append(inexistent, "Potentilla verna / pusilla")
+inexistent <- append(inexistent, "Rubus fruticosus aggr. s.l.")
+inexistent <- append(inexistent, "Viola reichenbachiana / riviniana")
+inexistent <- append(inexistent, "Pulmonaria australis / mollis")
+inexistent <- append(inexistent, "Alchemilla vulgaris aggr. s.l.")
+inexistent <- append(inexistent, "Alchemilla alpina aggr. s.l.")
+inexistent <- append(inexistent, "Plantago serpentina aggr.")
 
 species <- species[!species %in% inexistent]
 
