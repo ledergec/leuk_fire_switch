@@ -651,6 +651,7 @@ goedick_species[goedick_species == "Sorbus mougeotii"] <- "Sorbus aria aggr."
 goedick_species[goedick_species == "Sorbus aria"] <- "Sorbus aria aggr."
 goedick_species[goedick_species == "Rosa canina"] <- "Rosa canina aggr."
 goedick_species[goedick_species == "Juniperus communis subsp. nana"] <- "Juniperus communis subsp. alpina"
+goedick_species[goedick_species == "Koeleria marcantha"] <- "Koeleria macrantha"
 
 # Code used to check which species are new in goedickemeier
 # # Accepted new species in goedickemeier
