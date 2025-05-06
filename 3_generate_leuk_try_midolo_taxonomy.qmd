@@ -161,10 +161,14 @@ replacements <- add_row(replacements, old = "Alchemilla conjuncta aggr.", new = 
 replacements <- add_row(replacements, old = "Hieracium sabaudum aggr.", new = "Hieracium sabaudum")
 replacements <- add_row(replacements, old = "Hieracium glaucinum aggr.", new = "Hieracium glaucinum")
 replacements <- add_row(replacements, old = "Festuca valesiaca aggr.", new = "Festuca valesiaca")
+replacements <- add_row(replacements, old = "Plantago serpentina aggr.", new = "Plantago serpentina")
+replacements <- add_row(replacements, old = "Pulmonaria mollis aggr.", new = "Pulmonaria mollis")
 
 # adding aggr.
 replacements <- add_row(replacements, old = "Potentilla verna", new = "Potentilla verna aggr.")
 replacements <- add_row(replacements, old = "Sagina apetala subsp. apetala", new = "Sagina apetala aggr.")
+replacements <- add_row(replacements, old = "Ononis repens", new = "Ononis spinosa aggr.")
+replacements <- add_row(replacements, old = "Viola canina subsp. montana", new = "Viola canina aggr.")
 
 # removing subsp.
 replacements <- add_row(replacements, old = "Prunus padus subsp. padus", new = "Prunus padus")
@@ -179,8 +183,11 @@ replacements <- add_row(replacements, old = "Veronica prostrata subsp. prostrata
 replacements <- add_row(replacements, old = "Crepis vesicaria subsp. taraxacifolia", new = "Crepis vesicaria")
 replacements <- add_row(replacements, old = "Cerastium fontanum subsp. vulgare", new = "Cerastium fontanum")
 replacements <- add_row(replacements, old = "Cerastium arvense subsp. strictum", new = "Cerastium arvense")
-replacements <- add_row(replacements, old = "Viola canina subsp. montana", new = "Viola canina aggr.")
-replacements <- add_row(replacements, old = "Ononis repens", new = "Ononis spinosa aggr.")
+replacements <- add_row(replacements, old = "Peucedanum austriacum susp. austriacum", new = "Peucedanum austriacum")
+
+# Synonyms
+replacements <- add_row(replacements, old = "Juniperus communis subsp. alpina", new = "Juniperus nana")
+replacements <- add_row(replacements, old = "Ranunculus tuberosus", new = "Ranunculus nemorosus")
 
 # specializations
 replacements <- add_row(replacements, old = "Salix appendiculata / caprea", new = "Salix appendiculata")
@@ -218,6 +225,13 @@ inexistent <- append(inexistent, "Apiaceae")
 inexistent <- append(inexistent, "Poaceae")
 inexistent <- append(inexistent, "Caryophyllaceae")
 inexistent <- append(inexistent, "Amelanchier humilis")
+inexistent <- append(inexistent, "Potentilla verna / pusilla")
+inexistent <- append(inexistent, "Rubus fruticosus aggr. s.l.")
+inexistent <- append(inexistent, "Viola reichenbachiana / riviniana")
+inexistent <- append(inexistent, "Pulmonaria australis / mollis")
+inexistent <- append(inexistent, "Alchemilla vulgaris aggr. s.l.")
+inexistent <- append(inexistent, "Alchemilla alpina aggr. s.l.")
+inexistent <- append(inexistent, "Gehölz unbekannt")
 
 species <- species[!species %in% inexistent]
 
