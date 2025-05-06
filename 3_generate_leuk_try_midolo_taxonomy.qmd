@@ -284,6 +284,7 @@ replacements <- add_row(replacements, old = "Erysimum rhaeticum aggr.", new = "E
 replacements <- add_row(replacements, old = "Festuca violacea aggr.", new = "Festuca violacea")
 replacements <- add_row(replacements, old = "Hieracium glaucinum aggr.", new = "Hieracium glaucinum")
 replacements <- add_row(replacements, old = "Galium rubrum aggr.", new = "Galium rubrum")
+replacements <- add_row(replacements, old = "Pulmonaria mollis aggr.", new = "Pulmonaria mollis")
 
 # adding aggr.
 replacements <- add_row(replacements, old = "Dactylorhiza maculata subsp. fuchsii", new = "Dactylorhiza maculata aggr.")
@@ -309,6 +310,7 @@ replacements <- add_row(replacements, old = "Chenopodium album", new = "Chenopod
 replacements <- add_row(replacements, old = "Poa angustifolia", new = "Poa pratensis aggr.")
 replacements <- add_row(replacements, old = "Festuca rubra", new = "Festuca rubra aggr.")
 replacements <- add_row(replacements, old = "Leontodon crispus", new = "Leontodon crispus aggr.")
+replacements <- add_row(replacements, old = "Dryopteris carthusiana", new = "Dryopteris carthusiana aggr.")
 
 # removing subsp.
 replacements <- add_row(replacements, old = "Euphrasia rostkoviana subsp. rostkoviana", new = "Euphrasia rostkoviana")
@@ -322,6 +324,7 @@ replacements <- add_row(replacements, old = "Crepis vesicaria subsp. taraxacifol
 replacements <- add_row(replacements, old = "Veronica prostrata subsp. prostrata", new = "Veronica prostrata")
 replacements <- add_row(replacements, old = "Prunus padus subsp. padus", new = "Prunus padus")
 replacements <- add_row(replacements, old = "Viola canina subsp. montana", new = "Viola canina")
+replacements <- add_row(replacements, old = "Peucedanum austriacum susp. austriacum", new = "Peucedanum austriacum")
 
 # add subsp.
 replacements <- add_row(replacements, old = "Juniperus communis", new = "Juniperus communis subsp. communis")
@@ -383,6 +386,15 @@ replacements <- add_row(replacements, old = "Helictotrichon pubescens", new = "A
 replacements <- add_row(replacements, old = "Conyza canadensis", new = "Erigeron canadensis")
 replacements <- add_row(replacements, old = "Bromus erectus", new = "Bromopsis erecta")
 replacements <- add_row(replacements, old = "Muscari comosum", new = "Leopoldia comosa")
+replacements <- add_row(replacements, old = "Hieracium intybaceum", new = "Schlagintweitia intybacea")
+replacements <- add_row(replacements, old = "Tephroseris capitata", new = "Tephroseris integrifolia")
+replacements <- add_row(replacements, old = "Crocus albiflorus", new = "Crocus vernus")
+replacements <- add_row(replacements, old = "Festuca pulchella", new = "Leucopoa pulchella")
+replacements <- add_row(replacements, old = "Draba muralis", new = "Drabella muralis")
+replacements <- add_row(replacements, old = "Poa variegata", new = "Bellardiochloa variegata")
+replacements <- add_row(replacements, old = "Chenopodium bonus-henricus", new = "Blitum bonus-henricus")
+replacements <- add_row(replacements, old = "Juniperus communis subsp. alpina", new = "Juniperus communis subsp. nana")
+replacements <- add_row(replacements, old = "Centaurea montana", new = "Cyanus montanus")
 
 
 m <- match(replacements$old, species)
@@ -435,6 +447,18 @@ inexistent <- append(inexistent, "Ononis repens")
 inexistent <- append(inexistent, "Stachys byzantina")
 inexistent <- append(inexistent, "Centaurea valesiaca")
 inexistent <- append(inexistent, "Amelanchier humilis")
+inexistent <- append(inexistent, "Viola reichenbachiana / riviniana")
+inexistent <- append(inexistent, "Rubus fruticosus aggr. s.l.")
+inexistent <- append(inexistent, "Alchemilla vulgaris aggr. s.l.")
+inexistent <- append(inexistent, "Alchemilla alpina aggr. s.l.")
+inexistent <- append(inexistent, "Gehölz unbekannt")
+inexistent <- append(inexistent, "Senecio ovatus")
+inexistent <- append(inexistent, "Luzula sudetica")
+inexistent <- append(inexistent, "Dryopteris dilatata")
+inexistent <- append(inexistent, "Potentilla verna / pusilla")
+inexistent <- append(inexistent, "Pulmonaria australis / mollis")
+inexistent <- append(inexistent, "Ranunculus tuberosus")
+inexistent <- append(inexistent, "Plantago serpentina aggr.")
 
 species <- species[!species %in% inexistent]
 
