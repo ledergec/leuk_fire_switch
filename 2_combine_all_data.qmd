@@ -941,7 +941,7 @@ Define altitude bands:
 min(final_data$elevation_m[final_data$year == 2004 | final_data$year == 2005 | final_data$year == 2006 | final_data$year == 2007 | final_data$year == 2013 | final_data$year == 2023])
 # max elevation of plot on fire patch
 max(final_data$elevation_m[final_data$year == 2004 | final_data$year == 2005 | final_data$year == 2006 | final_data$year == 2007 | final_data$year == 2013 | final_data$year == 2023])
-altitude_bands <- c(850, 1300, 1700, 2120)
+altitude_bands <- c(830, 1300, 1700, 2180)
 ```
 
 Add altitude bands to data:
