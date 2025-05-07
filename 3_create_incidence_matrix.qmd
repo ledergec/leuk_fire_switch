@@ -28,12 +28,14 @@ Transform the data to create a species matrix, where every column contains a spe
 
 ```{r}
 raw_data$year[raw_data$year == "climax"] <- 2178
+raw_data$year[raw_data$year == "goedicke"] <- 1995
 raw_data$year <- as.numeric(raw_data$year)
-raw_data$plotid <- raw_data$year*10000 + raw_data$global_id
+raw_data$plotid <- raw_data$year*100000 + raw_data$global_id
 length(unique(raw_data$plotid))
 transformed_data <- data.frame(plotid = unique(raw_data$plotid))
 transformed_data$year <- raw_data$year[match(transformed_data$plotid, raw_data$plotid)]
 transformed_data$elevation <- raw_data$elevation_m[match(transformed_data$plotid, raw_data$plotid)]
+transformed_data$altitude_band <- raw_data$altitude_band[match(transformed_data$plotid, raw_data$plotid)]
 
 for(species_name in species_names) {
   column <- (raw_data |> 
