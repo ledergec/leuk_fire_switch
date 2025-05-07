@@ -955,6 +955,13 @@ unique(final_data$altitude_band)
 max(final_data$elevation_m, na.rm = T)
 ```
 
+Make sure the goedicke data is in the same "year":
+```{r}
+final_data$year[final_data$year == 1995] <- "goedicke"
+final_data$year[final_data$year == 1996] <- "goedicke"
+```
+
+
 Write the result to file
 ```{r}
 write_csv(final_data, "../Daten/Intermediate/combined_data.csv")
