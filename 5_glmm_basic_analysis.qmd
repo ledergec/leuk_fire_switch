@@ -159,6 +159,15 @@ compute_all_p_values <- function(indicator_data, filename) {
 
 create_full_plot(mean_iv, "../Daten/Results/Successional Dynamics/Basic Analysis/all_taxon_traits_plot.png")
 compute_all_p_values(mean_iv, "../Daten/Results/Successional Dynamics/Basic Analysis/all_taxon_traits_p_values.csv")
+
+create_full_plot(mean_iv[mean_iv$altitude_band == "low",], "../Daten/Results/Successional Dynamics/Basic Analysis/low_altitude_taxon_traits_plot.png")
+compute_all_p_values(mean_iv[mean_iv$altitude_band == "low",], "../Daten/Results/Successional Dynamics/Basic Analysis/low_altitude_taxon_traits_p_values.csv")
+
+create_full_plot(mean_iv[mean_iv$altitude_band == "mid",], "../Daten/Results/Successional Dynamics/Basic Analysis/mid_altitude_taxon_traits_plot.png")
+compute_all_p_values(mean_iv[mean_iv$altitude_band == "mid",], "../Daten/Results/Successional Dynamics/Basic Analysis/mid_altitude_taxon_traits_p_values.csv")
+
+create_full_plot(mean_iv[mean_iv$altitude_band == "high",], "../Daten/Results/Successional Dynamics/Basic Analysis/high_altitude_taxon_traits_plot.png")
+compute_all_p_values(mean_iv[mean_iv$altitude_band == "high",], "../Daten/Results/Successional Dynamics/Basic Analysis/high_altitude_taxon_traits_p_values.csv")
 ```
 
 
