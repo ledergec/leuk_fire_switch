@@ -588,6 +588,7 @@ goedickemeier_header$year <- floor(goedickemeier_header$plot.id / 1000) + 1900
 goedickemeier_header$plot_no <- NA
 names(goedickemeier_header)[1] <- "global_id"
 names(goedickemeier_header)[5] <- "elevation_m"
+goedickemeier_header$elevation_m <- as.numeric(goedickemeier_header$elevation_m)
 goedickemeier_header <- goedickemeier_header[,c(1,9,8,3,4,5)]
 
 goedickemeier_species <- read_csv("../Daten/Leuk/Goedickemeier/artenliste.csv")
