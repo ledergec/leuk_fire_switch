@@ -935,6 +935,26 @@ number_of_plots_near_fire_plots <- length(unique(final_data$global_id[(final_dat
 number_of_plots_near_fire_plots
 ```
 
+Define altitude bands:
+```{r}
+# min elevation of plot on fire patch
+min(final_data$elevation_m[final_data$year == 2004 | final_data$year == 2005 | final_data$year == 2006 | final_data$year == 2007 | final_data$year == 2013 | final_data$year == 2023])
+# max elevation of plot on fire patch
+max(final_data$elevation_m[final_data$year == 2004 | final_data$year == 2005 | final_data$year == 2006 | final_data$year == 2007 | final_data$year == 2013 | final_data$year == 2023])
+altitude_bands <- c(850, 1300, 1700, 2120)
+```
+
+Add altitude bands to data:
+```{r}
+final_data$altitude_band <- NA
+final_data$altitude_band[final_data$elevation_m >= altitude_bands[1] & final_data$elevation_m < altitude_bands[2]] <- "low"
+final_data$altitude_band[final_data$elevation_m >= altitude_bands[2] & final_data$elevation_m < altitude_bands[3]] <- "mid"
+final_data$altitude_band[final_data$elevation_m >= altitude_bands[3] & final_data$elevation_m < altitude_bands[4]] <- "high"
+final_data$altitude_band <- factor(final_data$altitude_band, levels = c("low", "mid", "high"))
+unique(final_data$altitude_band)
+max(final_data$elevation_m, na.rm = T)
+```
+
 Write the result to file
 ```{r}
 write_csv(final_data, "../Daten/Intermediate/combined_data.csv")
