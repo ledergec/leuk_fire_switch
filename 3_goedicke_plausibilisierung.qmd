@@ -1,0 +1,43 @@
+---
+title: "goedicke_plausibilisierung"
+format: html
+---
+
+Load necessary libraries:
+```{r}
+library(readr)
+library(dplyr)
+```
+
+Read combined data:
+```{r}
+data <- read_csv("../Daten/Intermediate/combined_data.csv")
+```
+
+Simplify selection of goedicke data:
+```{r}
+data$year[data$year == 1995 | data$year == 1996] <- "goedicke"
+```
+
+Compute alpha diversity for different years in different bands:
+```{r}
+data <- data[!endsWith(data$`Species_unified_2004-23`, "spec."),]
+
+sum(data$altitude_band == "low", na.rm = T)
+sum(data$altitude_band == "mid", na.rm = T)
+sum(data$altitude_band == "high", na.rm = T)
+
+number_of_goedicke_plots_included <- length(unique((data$global_id[!is.na(data$min_climax_dist) & (data$min_climax_dist < 180 | data$min_fire_dist < 180)])))
+number_of_goedicke_plots_included
+
+summarized_data <- data[is.na(data$min_climax_dist) | data$min_climax_dist < 180 | data$min_fire_dist < 180,] |> # 
+    group_by(year, altitude_band, global_id) |> 
+    summarise(n = length(unique(`Species_unified_2004-23`)))
+
+p <- ggplot(data = summarized_data, aes(x = year, y= n, fill = altitude_band)) + geom_boxplot() 
+p
+ggsave("../Daten/Results/Goedicke/alpha_diversitaet.png", p, width = 2500, height = 2500, units = "px")
+```
+
+
+
