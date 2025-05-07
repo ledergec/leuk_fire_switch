@@ -907,6 +907,32 @@ for(year in unique(data$year)) {
 }
 ```
 
+Add information to goedickemeier plots about their distance to the nearest climax plot and nearest plot on the fire patch:
+```{r}
+all_plots <- distinct(final_data, global_id, .keep_all = T)
+all_plots <- all_plots[,c("global_id", "year", "coordX", "coordY")]
+fire_plots <- all_plots[all_plots$year != "climax" & all_plots$year != 1995 & all_plots$year != 1996,]
+climax_plots <- all_plots[all_plots$year == "climax",]
+goedicke_plots <- all_plots[all_plots$year == 1996 | all_plots$year == 1995,]
+goedicke_plots$min_fire_dist <- NA
+goedicke_plots$min_climax_dist <- NA
+
+for(i in 1:nrow(goedicke_plots)) {
+  x <- goedicke_plots$coordX[i]
+  y <- goedicke_plots$coordY[i]
+  
+  goedicke_plots$min_fire_dist[i] <- min(sqrt((fire_plots$coordX - x)*(fire_plots$coordX -x) + (fire_plots$coordY - y)*(fire_plots$coordY - y)))
+  goedicke_plots$min_climax_dist[i] <- min(sqrt((climax_plots$coordX - x)*(climax_plots$coordX -x) + (climax_plots$coordY - y)*(climax_plots$coordY - y)))
+}
+
+goedicke_plots <- goedicke_plots[,c("global_id", "min_fire_dist", "min_climax_dist")]
+final_data <- right_join(goedicke_plots, final_data, join_by(global_id))
+
+number_of_plots_near_climax_plots <- length(unique(final_data$global_id[(final_data$year == 1995 | final_data$year == 1996) & final_data$min_climax_dist < 180]))
+number_of_plots_near_climax_plots
+number_of_plots_near_fire_plots <- length(unique(final_data$global_id[(final_data$year == 1995 | final_data$year == 1996) & final_data$min_fire_dist < 180]))
+number_of_plots_near_fire_plots
+```
 
 Write the result to file
 ```{r}
