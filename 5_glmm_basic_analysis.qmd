@@ -24,6 +24,7 @@ library(multcompView)
 
 ```{r}
 mean_iv <- read_csv("../Daten/Intermediate/mean_indicator_values.csv")
+mean_iv <- mean_iv[!is.na(mean_iv$log_dry_seed_mass_mg),]
 ```
 
 
@@ -81,79 +82,83 @@ compute_p_values <- function(indicator_data, response_name) {
   return(result)
 }
 
-names(mean_iv)
-mean_iv <- mean_iv[!is.na(mean_iv$log_dry_seed_mass_mg),]
+create_full_plot <- function(indicator_data, filename) {
+  p_moisture <- create_plot(indicator_data, "EIVEresM", "Moisture", "M")
+  p_nutrients <- create_plot(indicator_data, "EIVEresN", "Nutrients", "N")
+  p_reaction <- create_plot(indicator_data, "EIVEresR", "Reaction", "R")
+  p_light <- create_plot(indicator_data, "EIVEresL", "Light", "L")
+  p_temperature <- create_plot(indicator_data, "EIVEresT", "Temperature", "T")
+  p_dist_sev <- create_plot(indicator_data, "DistSeverity", "Disturbance Severity", "Disturbance Severity")
+  p_dist_freq <- create_plot(indicator_data, "DistFrequency", "Disturbance Frequency", "Disturbance Frequency")
+  p_mowing_freq <- create_plot(indicator_data, "MowingFrequency", "Mowing Frequency", "Mowing Frequency")
+  p_grazing_pressure <- create_plot(indicator_data, "GrazingPressure", "Grazing Pressure", "Grazing Pressure")
+  p_soil_disturbance <- create_plot(indicator_data, "SoilDisturbance", "Soil Disturbance", "Soil Distrubance")
+  p_competition <- create_plot(indicator_data, "Competition", "Competition", "Competition")
+  p_stress <- create_plot(indicator_data, "Stress", "Stress", "Stress")
+  p_ruderalness <- create_plot(indicator_data, "Ruderalness", "Ruderalness", "Ruderalness")
+  p_hemeroby <- create_plot(indicator_data, "EM", "Hemeroby", "Hemeroby")
+  p_seed <- create_plot(indicator_data, "log_dry_seed_mass_mg", "log10(Dry Seed Mass (mg))", "Seed Mass")
+  p_leaf <- create_plot(indicator_data, "log_sla_cm2_per_mg", "log10(SLA (cm^2/mg))", "Leaf Area")
+  p_height <- create_plot(indicator_data, "log_canopy_height_m", "log10(Canopy height (m))", "Canopy Height")
+  
+  p <- ggarrange(
+    p_moisture, p_nutrients, p_reaction, 
+    p_light, p_temperature, p_dist_sev, 
+    p_dist_freq, p_mowing_freq, p_grazing_pressure, 
+    p_soil_disturbance, p_competition, p_stress, 
+    p_ruderalness, p_hemeroby, p_seed, 
+    p_leaf, p_height, 
+    ncol = 3,
+    nrow = 6
+  )
+  p
+  ggsave(filename, p, width = 3000, height = 4200, units = "px")
+}
 
-p_moisture <- create_plot(mean_iv, "EIVEresM", "Moisture", "M")
-p_nutrients <- create_plot(mean_iv, "EIVEresN", "Nutrients", "N")
-p_reaction <- create_plot(mean_iv, "EIVEresR", "Reaction", "R")
-p_light <- create_plot(mean_iv, "EIVEresL", "Light", "L")
-p_temperature <- create_plot(mean_iv, "EIVEresT", "Temperature", "T")
-p_dist_sev <- create_plot(mean_iv, "DistSeverity", "Disturbance Severity", "Disturbance Severity")
-p_dist_freq <- create_plot(mean_iv, "DistFrequency", "Disturbance Frequency", "Disturbance Frequency")
-p_mowing_freq <- create_plot(mean_iv, "MowingFrequency", "Mowing Frequency", "Mowing Frequency")
-p_grazing_pressure <- create_plot(mean_iv, "GrazingPressure", "Grazing Pressure", "Grazing Pressure")
-p_soil_disturbance <- create_plot(mean_iv, "SoilDisturbance", "Soil Disturbance", "Soil Distrubance")
-p_competition <- create_plot(mean_iv, "Competition", "Competition", "Competition")
-p_stress <- create_plot(mean_iv, "Stress", "Stress", "Stress")
-p_ruderalness <- create_plot(mean_iv, "Ruderalness", "Ruderalness", "Ruderalness")
-p_hemeroby <- create_plot(mean_iv, "EM", "Hemeroby", "Hemeroby")
-p_seed <- create_plot(mean_iv, "log_dry_seed_mass_mg", "log10(Dry Seed Mass (mg))", "Seed Mass")
-p_leaf <- create_plot(mean_iv, "log_sla_cm2_per_mg", "log10(SLA (cm^2/mg))", "Leaf Area")
-p_height <- create_plot(mean_iv, "log_canopy_height_m", "log10(Canopy height (m))", "Canopy Height")
+compute_all_p_values <- function(indicator_data, filename) {
+  p_moisture <- compute_p_values(indicator_data, "EIVEresM")
+  p_nutrients <- compute_p_values(indicator_data, "EIVEresN")
+  p_reaction <- compute_p_values(indicator_data, "EIVEresR")
+  p_light <- compute_p_values(indicator_data, "EIVEresL")
+  p_temperature <- compute_p_values(indicator_data, "EIVEresT")
+  p_dist_sev <- compute_p_values(indicator_data, "DistSeverity")
+  p_dist_freq <- compute_p_values(indicator_data, "DistFrequency")
+  p_mowing_freq <- compute_p_values(indicator_data, "MowingFrequency")
+  p_grazing_pressure <- compute_p_values(indicator_data, "GrazingPressure")
+  p_soil_disturbance <- compute_p_values(indicator_data, "SoilDisturbance")
+  p_competition <- compute_p_values(indicator_data, "Competition")
+  p_stress <- compute_p_values(indicator_data, "Stress")
+  p_ruderalness <- compute_p_values(indicator_data, "Ruderalness")
+  p_hemeroby <- compute_p_values(indicator_data, "EM")
+  p_seed <- compute_p_values(indicator_data, "log_dry_seed_mass_mg")
+  p_leaf <- compute_p_values(indicator_data, "log_sla_cm2_per_mg")
+  p_height <- compute_p_values(indicator_data, "log_canopy_height_m")
+  
+  p_values <- p_moisture
+  p_values <- full_join(p_values, p_nutrients, by = "year")
+  p_values <- full_join(p_values, p_reaction, by = "year")
+  p_values <- full_join(p_values, p_light, by = "year")
+  p_values <- full_join(p_values, p_temperature, by = "year")
+  p_values <- full_join(p_values, p_dist_sev, by = "year")
+  p_values <- full_join(p_values, p_dist_freq, by = "year")
+  p_values <- full_join(p_values, p_mowing_freq, by = "year")
+  p_values <- full_join(p_values, p_grazing_pressure, by = "year")
+  p_values <- full_join(p_values, p_soil_disturbance, by = "year")
+  p_values <- full_join(p_values, p_competition, by = "year")
+  p_values <- full_join(p_values, p_stress, by = "year")
+  p_values <- full_join(p_values, p_ruderalness, by = "year")
+  p_values <- full_join(p_values, p_hemeroby, by = "year")
+  p_values <- full_join(p_values, p_seed, by = "year")
+  p_values <- full_join(p_values, p_leaf, by = "year")
+  p_values <- full_join(p_values, p_height, by = "year")
+  
+  p_values[,-1] <- round(p_values[,-1], digits = 3)
+  p_values
+  write_csv(p_values, filename)
+}
 
-p <- ggarrange(
-  p_moisture, p_nutrients, p_reaction, 
-  p_light, p_temperature, p_dist_sev, 
-  p_dist_freq, p_mowing_freq, p_grazing_pressure, 
-  p_soil_disturbance, p_competition, p_stress, 
-  p_ruderalness, p_hemeroby, p_seed, 
-  p_leaf, p_height, 
-  ncol = 3,
-  nrow = 6
-)
-p
-ggsave("../Daten/Results/Successional Dynamics/Basic Analysis/all_taxon_traits_plot.png", p, width = 3000, height = 4200, units = "px")
-
-p_moisture <- compute_p_values(mean_iv, "EIVEresM")
-p_nutrients <- compute_p_values(mean_iv, "EIVEresN")
-p_reaction <- compute_p_values(mean_iv, "EIVEresR")
-p_light <- compute_p_values(mean_iv, "EIVEresL")
-p_temperature <- compute_p_values(mean_iv, "EIVEresT")
-p_dist_sev <- compute_p_values(mean_iv, "DistSeverity")
-p_dist_freq <- compute_p_values(mean_iv, "DistFrequency")
-p_mowing_freq <- compute_p_values(mean_iv, "MowingFrequency")
-p_grazing_pressure <- compute_p_values(mean_iv, "GrazingPressure")
-p_soil_disturbance <- compute_p_values(mean_iv, "SoilDisturbance")
-p_competition <- compute_p_values(mean_iv, "Competition")
-p_stress <- compute_p_values(mean_iv, "Stress")
-p_ruderalness <- compute_p_values(mean_iv, "Ruderalness")
-p_hemeroby <- compute_p_values(mean_iv, "EM")
-p_seed <- compute_p_values(mean_iv, "log_dry_seed_mass_mg")
-p_leaf <- compute_p_values(mean_iv, "log_sla_cm2_per_mg")
-p_height <- compute_p_values(mean_iv, "log_canopy_height_m")
-
-p_values <- p_moisture
-p_values <- full_join(p_values, p_nutrients, by = "year")
-p_values <- full_join(p_values, p_reaction, by = "year")
-p_values <- full_join(p_values, p_light, by = "year")
-p_values <- full_join(p_values, p_temperature, by = "year")
-p_values <- full_join(p_values, p_dist_sev, by = "year")
-p_values <- full_join(p_values, p_dist_freq, by = "year")
-p_values <- full_join(p_values, p_mowing_freq, by = "year")
-p_values <- full_join(p_values, p_grazing_pressure, by = "year")
-p_values <- full_join(p_values, p_soil_disturbance, by = "year")
-p_values <- full_join(p_values, p_competition, by = "year")
-p_values <- full_join(p_values, p_stress, by = "year")
-p_values <- full_join(p_values, p_ruderalness, by = "year")
-p_values <- full_join(p_values, p_hemeroby, by = "year")
-p_values <- full_join(p_values, p_seed, by = "year")
-p_values <- full_join(p_values, p_leaf, by = "year")
-p_values <- full_join(p_values, p_height, by = "year")
-
-p_values[,-1] <- round(p_values[,-1], digits = 3)
-p_values
-write_csv(p_values, "../Daten/Results/Successional Dynamics/Basic Analysis/p_values.csv")
+create_full_plot(mean_iv, "../Daten/Results/Successional Dynamics/Basic Analysis/all_taxon_traits_plot.png")
+compute_all_p_values(mean_iv, "../Daten/Results/Successional Dynamics/Basic Analysis/all_taxon_traits_p_values.csv")
 ```
 
 
