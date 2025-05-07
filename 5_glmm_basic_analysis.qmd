@@ -35,27 +35,27 @@ names(mean_iv)
 any(is.na(mean_iv$slope))
 mean_iv$year <- as.factor(mean_iv$year)
 
-compute_p_values_for_letters <- function(response_name) {
+compute_p_values_for_letters <- function(indicator_data, response_name) {
   tmp_formula_string <- paste(response_name, " ~ elevation + year + (1|global_id)", sep = "")
-  model <- lmer(as.formula(tmp_formula_string), data=mean_iv)
+  model <- lmer(as.formula(tmp_formula_string), data=indicator_data)
   s <- summary(glht(model, linfct = mcp (year = "Tukey" )))
   res <- s$test$pvalues
   names(res) <- gsub(" ", "", names(s$test$coefficients))
   return(res)
 }
 
-create_plot <- function(response_name, ylab, title) {
-  letters <- multcompLetters(compute_p_values_for_letters(response_name))
+create_plot <- function(indicator_data, response_name, ylab, title) {
+  letters <- multcompLetters(compute_p_values_for_letters(indicator_data, response_name))
   order <- order(names(letters$Letters))
 
-  small_letters <- mean_iv |> 
+  small_letters <- indicator_data |> 
     group_by(year) |>
     summarise(
       mean = mean(!!sym(response_name)), 
       quant = quantile(!!sym(response_name), probs = 0.75)) 
   small_letters$letters <- letters$Letters[order]
 
-  p <- ggplot(data = mean_iv, aes_string(x = "year", y = response_name)) +
+  p <- ggplot(data = indicator_data, aes_string(x = "year", y = response_name)) +
     geom_boxplot() +
     theme_classic() +
     ylab(ylab) +
@@ -70,9 +70,9 @@ create_plot <- function(response_name, ylab, title) {
   return(p)
 }
 
-compute_p_values <- function(response_name) {
+compute_p_values <- function(indicator_data, response_name) {
   tmp_formula_string <- paste(response_name, " ~ elevation + year + (1|global_id)", sep = "")
-  model <- lmer(as.formula(tmp_formula_string), data=mean_iv)
+  model <- lmer(as.formula(tmp_formula_string), data=indicator_data)
   # AIC(model)
    summary(model)
   s <- summary(glht(model, linfct = mcp (year = "Tukey" )))
@@ -84,23 +84,23 @@ compute_p_values <- function(response_name) {
 names(mean_iv)
 mean_iv <- mean_iv[!is.na(mean_iv$log_dry_seed_mass_mg),]
 
-p_moisture <- create_plot("EIVEresM", "Moisture", "M")
-p_nutrients <- create_plot("EIVEresN", "Nutrients", "N")
-p_reaction <- create_plot("EIVEresR", "Reaction", "R")
-p_light <- create_plot("EIVEresL", "Light", "L")
-p_temperature <- create_plot("EIVEresT", "Temperature", "T")
-p_dist_sev <- create_plot("DistSeverity", "Disturbance Severity", "Disturbance Severity")
-p_dist_freq <- create_plot("DistFrequency", "Disturbance Frequency", "Disturbance Frequency")
-p_mowing_freq <- create_plot("MowingFrequency", "Mowing Frequency", "Mowing Frequency")
-p_grazing_pressure <- create_plot("GrazingPressure", "Grazing Pressure", "Grazing Pressure")
-p_soil_disturbance <- create_plot("SoilDisturbance", "Soil Disturbance", "Soil Distrubance")
-p_competition <- create_plot("Competition", "Competition", "Competition")
-p_stress <- create_plot("Stress", "Stress", "Stress")
-p_ruderalness <- create_plot("Ruderalness", "Ruderalness", "Ruderalness")
-p_hemeroby <- create_plot("EM", "Hemeroby", "Hemeroby")
-p_seed <- create_plot("log_dry_seed_mass_mg", "log10(Dry Seed Mass (mg))", "Seed Mass")
-p_leaf <- create_plot("log_sla_cm2_per_mg", "log10(SLA (cm^2/mg))", "Leaf Area")
-p_height <- create_plot("log_canopy_height_m", "log10(Canopy height (m))", "Canopy Height")
+p_moisture <- create_plot(mean_iv, "EIVEresM", "Moisture", "M")
+p_nutrients <- create_plot(mean_iv, "EIVEresN", "Nutrients", "N")
+p_reaction <- create_plot(mean_iv, "EIVEresR", "Reaction", "R")
+p_light <- create_plot(mean_iv, "EIVEresL", "Light", "L")
+p_temperature <- create_plot(mean_iv, "EIVEresT", "Temperature", "T")
+p_dist_sev <- create_plot(mean_iv, "DistSeverity", "Disturbance Severity", "Disturbance Severity")
+p_dist_freq <- create_plot(mean_iv, "DistFrequency", "Disturbance Frequency", "Disturbance Frequency")
+p_mowing_freq <- create_plot(mean_iv, "MowingFrequency", "Mowing Frequency", "Mowing Frequency")
+p_grazing_pressure <- create_plot(mean_iv, "GrazingPressure", "Grazing Pressure", "Grazing Pressure")
+p_soil_disturbance <- create_plot(mean_iv, "SoilDisturbance", "Soil Disturbance", "Soil Distrubance")
+p_competition <- create_plot(mean_iv, "Competition", "Competition", "Competition")
+p_stress <- create_plot(mean_iv, "Stress", "Stress", "Stress")
+p_ruderalness <- create_plot(mean_iv, "Ruderalness", "Ruderalness", "Ruderalness")
+p_hemeroby <- create_plot(mean_iv, "EM", "Hemeroby", "Hemeroby")
+p_seed <- create_plot(mean_iv, "log_dry_seed_mass_mg", "log10(Dry Seed Mass (mg))", "Seed Mass")
+p_leaf <- create_plot(mean_iv, "log_sla_cm2_per_mg", "log10(SLA (cm^2/mg))", "Leaf Area")
+p_height <- create_plot(mean_iv, "log_canopy_height_m", "log10(Canopy height (m))", "Canopy Height")
 
 p <- ggarrange(
   p_moisture, p_nutrients, p_reaction, 
@@ -115,23 +115,23 @@ p <- ggarrange(
 p
 ggsave("../Daten/Results/Successional Dynamics/Basic Analysis/all_taxon_traits_plot.png", p, width = 3000, height = 4200, units = "px")
 
-p_moisture <- compute_p_values("EIVEresM")
-p_nutrients <- compute_p_values("EIVEresN")
-p_reaction <- compute_p_values("EIVEresR")
-p_light <- compute_p_values("EIVEresL")
-p_temperature <- compute_p_values("EIVEresT")
-p_dist_sev <- compute_p_values("DistSeverity")
-p_dist_freq <- compute_p_values("DistFrequency")
-p_mowing_freq <- compute_p_values("MowingFrequency")
-p_grazing_pressure <- compute_p_values("GrazingPressure")
-p_soil_disturbance <- compute_p_values("SoilDisturbance")
-p_competition <- compute_p_values("Competition")
-p_stress <- compute_p_values("Stress")
-p_ruderalness <- compute_p_values("Ruderalness")
-p_hemeroby <- compute_p_values("EM")
-p_seed <- compute_p_values("log_dry_seed_mass_mg")
-p_leaf <- compute_p_values("log_sla_cm2_per_mg")
-p_height <- compute_p_values("log_canopy_height_m")
+p_moisture <- compute_p_values(mean_iv, "EIVEresM")
+p_nutrients <- compute_p_values(mean_iv, "EIVEresN")
+p_reaction <- compute_p_values(mean_iv, "EIVEresR")
+p_light <- compute_p_values(mean_iv, "EIVEresL")
+p_temperature <- compute_p_values(mean_iv, "EIVEresT")
+p_dist_sev <- compute_p_values(mean_iv, "DistSeverity")
+p_dist_freq <- compute_p_values(mean_iv, "DistFrequency")
+p_mowing_freq <- compute_p_values(mean_iv, "MowingFrequency")
+p_grazing_pressure <- compute_p_values(mean_iv, "GrazingPressure")
+p_soil_disturbance <- compute_p_values(mean_iv, "SoilDisturbance")
+p_competition <- compute_p_values(mean_iv, "Competition")
+p_stress <- compute_p_values(mean_iv, "Stress")
+p_ruderalness <- compute_p_values(mean_iv, "Ruderalness")
+p_hemeroby <- compute_p_values(mean_iv, "EM")
+p_seed <- compute_p_values(mean_iv, "log_dry_seed_mass_mg")
+p_leaf <- compute_p_values(mean_iv, "log_sla_cm2_per_mg")
+p_height <- compute_p_values(mean_iv, "log_canopy_height_m")
 
 p_values <- p_moisture
 p_values <- full_join(p_values, p_nutrients, by = "year")
@@ -153,7 +153,7 @@ p_values <- full_join(p_values, p_height, by = "year")
 
 p_values[,-1] <- round(p_values[,-1], digits = 3)
 p_values
-write_csv(p_values, "../Daten/Results/Successional Dynamics/p_values.csv")
+write_csv(p_values, "../Daten/Results/Successional Dynamics/Basic Analysis/p_values.csv")
 ```
 
 
