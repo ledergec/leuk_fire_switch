@@ -115,7 +115,7 @@ compute_p_values <- function(dist_method = "bray", min_altitude = elevations[1],
   results <- data.frame(years = character(), p_value = numeric())
   for(i in 1:(length(years) - 1)) {
     for(j in (i+1):length(years)) {
-      subset <- transformed_data[transformed_data$year %in% years[i:j] & transformed_data$elevation >= min_altitude & transformed_data$elevation < max_altitude,]
+      subset <- transformed_data[transformed_data$year %in% c(years[i],years[j]) & transformed_data$elevation >= min_altitude & transformed_data$elevation < max_altitude,]
       dist_matrix_subset <- vegdist(subset[,seq(4,length(colnames(transformed_data)),1)], method = dist_method)
       res <- betadispersion(dist_matrix_subset, subset$year, 999)
       # res <- betadispersion(dist_matrix_subset, subset$year, 10)
