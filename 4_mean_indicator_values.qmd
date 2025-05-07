@@ -200,6 +200,7 @@ compute_weighted_mean <- function(species, cover, numerical_value) {
 aggregated <- species |> 
   group_by(global_id, year) |> 
   summarise(
+    altitude_band = altitude_band[1],
     species_richness = length(unique(`Species_unified_2004-23`)),
     
     EIVEresM = compute_mean(`Species_unified_2004-23`, `EIVEres-M`), 
