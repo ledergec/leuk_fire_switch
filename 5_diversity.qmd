@@ -25,22 +25,20 @@ Read in the vegetation data from the Leuk fire sampling.
 
 ```{r}
 raw_data <- read_delim("../Daten/Intermediate/combined_data.csv")
+# remove plots from goedicke which are not close to the fire or climax data
+raw_data <- raw_data[raw_data$year != "goedicke" | raw_data$min_climax_dist < 180 | raw_data$min_fire_dist < 180,]
 
 transformed_data <- read_delim("../Daten/Intermediate/incidence_matrix.csv")
 transformed_data$year[transformed_data$year == 2178] <- "climax"
+transformed_data$year[transformed_data$year == 1995] <- "goedicke"
+# remove plots from goedicke which are not close to the fire or climax data
+transformed_data <- transformed_data[(transformed_data$plotid %% 100000) %in% unique(raw_data$global_id),]
 transformed_data$year <- as.factor(transformed_data$year)
 ```
 
-Definition of altitude bands:
-
+Definition of altitude bands as in 2_combine_all_data.qmd script:
 ```{r}
-min(transformed_data$elevation)
-max(transformed_data$elevation)
-(max(transformed_data$elevation) - min(transformed_data$elevation))/3
-elevations <- seq(
-  min(transformed_data$elevation), 
-  max(transformed_data$elevation), 
-  (max(transformed_data$elevation) - min(transformed_data$elevation))/3)
+elevations <- c(830, 1300, 1700, 2180)
 ```
 
 Between plot Betadiversity:
@@ -111,14 +109,14 @@ betadispersion <- function(data, factor, permutation) {
 }
 
 compute_p_values <- function(dist_method = "bray", min_altitude = elevations[1], max_altitude = elevations[4] + 1) {
-  years <- c("2004", "2005", "2006", "2007", "2013", "2023", "climax")
+  years <- c("2004", "2005", "2006", "2007", "2013", "2023", "climax", "goedicke")
   results <- data.frame(years = character(), p_value = numeric())
   for(i in 1:(length(years) - 1)) {
     for(j in (i+1):length(years)) {
       subset <- transformed_data[transformed_data$year %in% c(years[i],years[j]) & transformed_data$elevation >= min_altitude & transformed_data$elevation < max_altitude,]
-      dist_matrix_subset <- vegdist(subset[,seq(4,length(colnames(transformed_data)),1)], method = dist_method)
+      dist_matrix_subset <- vegdist(subset[,seq(5,length(colnames(transformed_data)),1)], method = dist_method)
       res <- betadispersion(dist_matrix_subset, subset$year, 999)
-      # res <- betadispersion(dist_matrix_subset, subset$year, 10)
+#      res <- betadispersion(dist_matrix_subset, subset$year, 10)
       p_value <- res[[1]][1,5]
       results <- add_row(results, years = paste(years[j], "-", years[i], sep = ""), p_value = p_value)
     }
@@ -133,12 +131,12 @@ compute_p_values <- function(dist_method = "bray", min_altitude = elevations[1],
 # title <- "Between plot Beta Diversity"
 create_distance_plot <- function(dist_method, ylabel, title, p_values, min_altitude = elevations[1], max_altitude = elevations[4] + 1) {
   subset <- transformed_data[transformed_data$elevation >= min_altitude & transformed_data$elevation < max_altitude,]
-  dist_matrix <- vegdist(subset[, seq(4,length(colnames(transformed_data)),1)], method = dist_method)
+  dist_matrix <- vegdist(subset[, seq(5,length(colnames(transformed_data)),1)], method = dist_method)
   
   box_plot_dist <- data.frame(year = character(), dist = numeric())
-  years <- c("2004","2005","2006","2007","2013", "2023", "climax")
+  years <- c("2004","2005","2006","2007","2013", "2023", "climax", "goedicke")
   for(year in years) {
-    dist_m <- vegdist(subset[subset$year == year, seq(4,length(colnames(transformed_data)),1)], method = dist_method)
+    dist_m <- vegdist(subset[subset$year == year, seq(5,length(colnames(transformed_data)),1)], method = dist_method)
     box_plot_dist <- add_row(box_plot_dist, year = year, dist = dist_m[lower.tri(dist_m)])
   }
   box_plot_dist <- box_plot_dist[!is.na(box_plot_dist$dist),]
@@ -224,9 +222,9 @@ bray_curtis_plot_high_el <- create_distance_plot(
 
 
 
-dist_plot <- ggarrange(bray_curtis_plot_low_el, 
+dist_plot <- ggarrange(bray_curtis_plot_high_el, 
                        bray_curtis_plot_mid_el, 
-                       bray_curtis_plot_high_el, ncol = 1, nrow = 3)
+                       bray_curtis_plot_low_el, ncol = 1, nrow = 3)
 ggsave(filename = "../Daten/Results/Successional Dynamics/between_plot_beta_diversity_altitudinal_bands.png", plot = dist_plot)
 ```
 
@@ -265,6 +263,8 @@ Alpha diversity:
 temp <- pivot_longer(aggregated, c("a1", "a10", "total"))
 temp <- temp[!(temp$year == "2007" & temp$name == "a1"), ]
 temp <- temp[!(temp$year == "2007" & temp$name == "a10"), ]
+temp <- temp[!(temp$year == "goedicke" & temp$name == "a1"), ]
+temp <- temp[!(temp$year == "goedicke" & temp$name == "a10"), ]
 
 compute_p_value <- function(min_elevation, max_elevation, area) {
   subset <- temp[temp$elevation >= min_elevation & temp$elevation < max_elevation & temp$name == area,  ]
@@ -281,9 +281,11 @@ compute_p_value <- function(min_elevation, max_elevation, area) {
 long_p_val <- function(p_value) {
   res <- p_value
   if(length(res) == 15) {
-    res <- res[c(1, 2, NA, 3, 4, 5, 6, NA, 7, 8, 9, NA, 10, 11, 12, NA, NA, NA, 13, 14, 15)]
+    #res <- res[c(1, 2, NA, 3, 4, 5, 6, NA, 7, 8, 9, NA, 10, 11, 12, NA, NA, NA, 13, 14, 15)]
+    res <- res[c(1, 2, NA, 3, 4, 5, NA, 6, NA, 7, 8, 9, NA, NA, 10, 11, 12, NA, NA, NA, NA, NA, 13, 14, NA, 15, NA, NA)]
   }
-  names(res) <- c("2005-2004", "2006-2004", "2007-2004", "2013-2004", "2023-2004",  "climax-2004", "2006-2005", "2007-2005", "2013-2005", "2023-2005", "climax-2005", "2007-2006", "2013-2006", "2023-2006", "climax-2006", "2013-2007", "2023-2007", "climax-2007", "2023-2013", "climax-2013", "climax-2023")
+#  names(res) <- c("2005-2004", "2006-2004", "2007-2004", "2013-2004", "2023-2004",  "climax-2004", "2006-2005", "2007-2005", "2013-2005", "2023-2005", "climax-2005", "2007-2006", "2013-2006", "2023-2006", "climax-2006", "2013-2007", "2023-2007", "climax-2007", "2023-2013", "climax-2013", "climax-2023")
+  names(res) <- c("2005-2004", "2006-2004", "2007-2004", "2013-2004", "2023-2004",  "climax-2004", "goedicke-2004", "2006-2005", "2007-2005", "2013-2005", "2023-2005", "climax-2005", "goedicke-2005", "2007-2006", "2013-2006", "2023-2006", "climax-2006", "goedicke-2006", "2013-2007", "2023-2007", "climax-2007", "goedicke-2007", "2023-2013", "climax-2013", "goedicke-2013", "climax-2023", "goedicke-2023", "goedicke-climax")
   return(res)
 }
 
@@ -361,12 +363,16 @@ p_values_alpha_mid <- compute_p_values(elevations[2], elevations[3] + 1, "mid")
 alpha_diversity_mid_plot <- create_alpha_plot(elevations[2], elevations[3])
 p_values_alpha_high <- compute_p_values(elevations[3], elevations[4] + 1, "high")
 alpha_diversity_high_plot <- create_alpha_plot(elevations[3], elevations[4] + 1)
+
+alpha_plot <- ggarrange(alpha_diversity_high_plot, 
+                       alpha_diversity_mid_plot, 
+                       alpha_diversity_low_plot, ncol = 1, nrow = 3)
+ggsave(filename = "../Daten/Results/Successional Dynamics/alpha_diversity_altitudinal_bands.png", plot = alpha_plot)
 ```
 
 Within plot Beta diversity:
-
 ```{r}
-aggregated <- aggregated[aggregated$year != 2007,]
+aggregated <- aggregated[aggregated$year != 2007 & aggregated$year != "goedicke",]
 
 aggregated <- pivot_longer(aggregated, cols = c("a1", "a10", "total"))
 # aggregated <- aggregated[aggregated$value > 0,]
@@ -444,6 +450,16 @@ within_plot_mid_p_values <- compute_p_values(elevations[2], elevations[3])
 within_plot_high_p_values <- compute_p_values(elevations[3], elevations[4] + 1)
 
 within_betadiversity_by_year_plot <- create_within_plot_plot(elevations[1], elevations[4] + 1)
+
+within_diversity_low_plot <- create_within_plot_plot(elevations[1], elevations[2])
+within_diversity_mid_plot <- create_within_plot_plot(elevations[2], elevations[3])
+within_diversity_high_plot <- create_within_plot_plot(elevations[3], elevations[4] + 1)
+
+within_plot <- ggarrange(within_diversity_high_plot, 
+                         within_diversity_mid_plot, 
+                         within_diversity_low_plot, ncol = 1, nrow = 3)
+ggsave(filename = "../Daten/Results/Successional Dynamics/within_diversity_altitudinal_bands.png", plot = within_plot)
+
 ```
 
 Gamma diversity:
