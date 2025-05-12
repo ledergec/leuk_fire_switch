@@ -7,6 +7,9 @@ Load necessary libraries:
 ```{r}
 library(readr)
 library(dplyr)
+library(nVennR)
+library(VennDiagram)
+library(ggplot2)
 ```
 
 Read combined data:
@@ -22,6 +25,7 @@ data$year[data$year == 1995 | data$year == 1996] <- "goedicke"
 Compute alpha diversity for different years in different bands:
 ```{r}
 data <- data[!endsWith(data$`Species_unified_2004-23`, "spec."),]
+data$`Species_unified_2004-23` <- sub(" cf\\.", "", data$`Species_unified_2004-23`)
 
 sum(data$altitude_band == "low", na.rm = T)
 sum(data$altitude_band == "mid", na.rm = T)
@@ -40,4 +44,121 @@ ggsave("../Daten/Results/Goedicke/alpha_diversitaet.png", p, width = 2500, heigh
 ```
 
 
+Compute diff between goedicke and climax and check whether species present in climax and not in goedicke are present on the fire patch:
+```{r}
+data <- data[(str_count(data$`Species_unified_2004-23`, " ") > 0),]
+data <- data[!(data$`Species_unified_2004-23` %in% c("Gehölz unbekannt", "Keimling 1", "Keimling 2", "Flache lange blätter")),]
+
+title <- "all altitudes"
+analyze_seed_backpressure <- function(data, title) {
+  length(unique(data$global_id[data$year == "goedicke" & (data$min_climax_dist < 90 | data$min_fire_dist < 90)]))
+  length(unique(data$global_id[data$year == "climax"]))
+  
+  goedicke_species <- unique(data$`Species_unified_2004-23`[data$year == "goedicke" & (data$min_climax_dist < 90 | data$min_fire_dist < 90)])
+  goedicke_species
+  
+  climax_species <- unique(data$`Species_unified_2004-23`[data$year == "climax"])
+  
+  fire_species <- unique(data$`Species_unified_2004-23`[data$year != "goedicke" & data$year != "climax"])
+  fire_species
+  
+  goedicke_species_not_in_climax <- goedicke_species[!(goedicke_species %in% climax_species)]
+  length(goedicke_species)
+  length(goedicke_species_not_in_climax)
+  
+  climax_species_not_in_goedicke <- climax_species[!(climax_species %in% goedicke_species)]
+  length(climax_species)
+  length(climax_species_not_in_goedicke)
+  
+  sum(goedicke_species_not_in_climax %in% fire_species)
+  sum(climax_species_not_in_goedicke %in% fire_species)
+  
+  percent_goedicke_only_on_fire <- 100*sum(goedicke_species_not_in_climax %in% fire_species)/length(goedicke_species_not_in_climax)
+  percent_goedicke_only_on_fire
+  
+  percent_climax_only_on_fire <- 100*sum(climax_species_not_in_goedicke %in% fire_species)/length(climax_species_not_in_goedicke)
+  percent_climax_only_on_fire
+  
+  #create dataset to plot
+  year <- c(rep("goedicke", 3), rep("climax", 3))
+  present <- rep(c("unique", "fire", "common"))
+  number_of_species <- c(sum(!(goedicke_species[!(goedicke_species %in% climax_species)] %in% fire_species)),
+                         sum(goedicke_species[!(goedicke_species %in% climax_species)] %in% fire_species), 
+                         sum(goedicke_species %in% climax_species), 
+                         sum(!(climax_species[!(climax_species %in% goedicke_species)] %in% fire_species)),
+                         sum(climax_species[!(climax_species %in% goedicke_species)] %in% fire_species), 
+                         sum(climax_species %in% goedicke_species)
+                         )
+  plot_data <- data.frame(year,present,number_of_species)
+  ggplot(plot_data, aes(fill=present, y=number_of_species, x=year)) + 
+      geom_bar(position="stack", stat="identity")
+  
+  venn.diagram(
+    x = list(fire_species, goedicke_species, climax_species),
+    category.names = c("fire", "goedicke", "climax"),
+    filename = paste("../Daten/Results/Goedicke/", title, ".svg"),
+    output = T
+  )
+  
+  species_venn <- createVennObj(nSets = 3, sNames = c('fire', 'goedicke', 'climax'))
+  species_venn <- setVennRegion(species_venn, c('fire'), as.numeric(sum(!(fire_species[!(fire_species %in% climax_species)] %in% goedicke_species))))
+  species_venn <- setVennRegion(species_venn, c('goedicke'), as.numeric(sum(!(goedicke_species[!(goedicke_species %in% climax_species)] %in% fire_species))))
+  species_venn <- setVennRegion(species_venn, c('climax'), as.numeric(sum(!(climax_species[!(climax_species %in% fire_species)] %in% goedicke_species))))
+  species_venn <- setVennRegion(species_venn, c('fire', 'goedicke', 'climax'), as.numeric(sum(fire_species[fire_species %in% climax_species] %in% goedicke_species)))
+  species_venn <- setVennRegion(species_venn, c('fire', 'goedicke'), as.numeric(sum(!(fire_species[fire_species %in% goedicke_species] %in% climax_species))))
+  species_venn <- setVennRegion(species_venn, c('fire', 'climax'), as.numeric(sum(!(fire_species[fire_species %in% climax_species] %in% goedicke_species))))
+  species_venn <- setVennRegion(species_venn, c('goedicke', 'climax'),  as.numeric(sum(!(goedicke_species[goedicke_species %in% climax_species] %in% fire_species))))
+  species_venn <- plotVenn(nVennObj = species_venn)
+  showSVG(species_venn, opacity=0.2, outFile = paste("../Daten/Results/Goedicke/", title, ".svg"))
+  
+  
+  all_species <- unique(data$`Species_unified_2004-23`)
+  
+  percent_plots_containing_species <- data.frame(species = character(), goedicke = numeric(), fire = numeric(), climax = numeric())
+  
+  species <- all_species[1]
+  for(species in all_species) {
+    percent_goedicke_plots <- 100 * length(unique(data$global_id[data$`Species_unified_2004-23` == species & data$year == "goedicke"])) / length(unique(data$global_id[data$year == "goedicke"]))
+    percent_fire_plots <- 100 * sum((data[!data$year %in% c("goedicke", "climax"),] |> group_by(global_id, year) |> summarize(present = as.integer(sum((species %in% `Species_unified_2004-23`)) > 0)))$present) / nrow(data[!data$year %in% c("goedicke", "climax"),] |> group_by(global_id, year) |> summarize(n = 1))
+    percent_climax_plots <- 100 * length(unique(data$global_id[data$`Species_unified_2004-23` == species & data$year == "climax"])) / length(unique(data$global_id[data$year == "climax"]))
+    
+    percent_plots_containing_species <- add_row(percent_plots_containing_species, species = species, goedicke = percent_goedicke_plots, fire = percent_fire_plots, climax = percent_climax_plots)
+  }
+  
+  percent_plots_containing_species
+  percent_plots_containing_species$delta_fire <- percent_plots_containing_species$fire - percent_plots_containing_species$goedicke
+  percent_plots_containing_species$delta_climax <- percent_plots_containing_species$climax - percent_plots_containing_species$goedicke
+  
+  cor(percent_plots_containing_species$delta_fire, percent_plots_containing_species$delta_climax, method = "pearson")
+  res <- cor.test(percent_plots_containing_species$delta_fire, percent_plots_containing_species$delta_climax, alternative = "greater", method = "pearson")
+  res$p.value
+  
+  sum <- summary(lm(delta_fire ~ delta_climax, percent_plots_containing_species))
+  
+  p_correlation_delta_precent <- 
+    percent_plots_containing_species |> 
+    ggplot(aes(x = delta_fire, y = delta_climax)) + 
+      geom_point() + 
+      geom_smooth(method = lm) + 
+      ggtitle(title) +
+      annotate("text", x = 30, y = 40, label = paste("pearson p-value = ", round(res$p.value, 3)))
+
+  ggsave(filename = paste("../Daten/Results/Goedicke/", title, "delta_correlation.png"), plot = p_correlation_delta_precent)
+  
+  p_correlation_delta_precent_with_labels <- 
+    percent_plots_containing_species |> 
+    ggplot(aes(x = delta_fire, y = delta_climax)) + 
+      geom_point() + 
+      geom_smooth(method = lm) + 
+      geom_label(label = percent_plots_containing_species$species, size = 2) + 
+      ggtitle(title)
+  
+  ggsave(filename = paste("../Daten/Results/Goedicke/", title, "delta_correlation_with_labels.png"), plot = p_correlation_delta_precent_with_labels)
+}
+
+analyze_seed_backpressure(data, "all altitudes")
+analyze_seed_backpressure(data[data$altitude_band == "high",], "high altitudes")
+analyze_seed_backpressure(data[data$altitude_band == "mid",], "mid altitudes")
+analyze_seed_backpressure(data[data$altitude_band == "low",], "low altitudes")
+```
 
