@@ -313,7 +313,7 @@ create_letters <- function(min_elevation, max_elevation) {
   return(small_letters)
 }
 
-create_alpha_plot <- function(min_elevation, max_elevation) {
+create_alpha_plot <- function(min_elevation, max_elevation, title) {
   subset <- temp[temp$elevation >= min_elevation & temp$elevation < max_elevation,  ]
   small_letters <- create_letters(min_elevation, max_elevation)
   plot <- ggplot(data = subset, aes(x = year, y = value, fill = name)) + 
@@ -323,7 +323,7 @@ create_alpha_plot <- function(min_elevation, max_elevation) {
     ylab("# species") +
     xlab("Year") +
     theme(legend.position="top") +
-    ggtitle("Alpha Diversity") +
+    ggtitle(title) +
     theme(plot.title = element_text(hjust = 0.5)) +
     geom_text(data = small_letters, aes( y = quant, label = letters),
           size = 3, 
@@ -355,14 +355,14 @@ compute_p_values <- function(min_elevation, max_elevation, height = character())
 
 p_values_alpha_all_elevatios <- compute_p_values(elevations[1], elevations[4] + 1, "all_elevations")
 round(p_values_alpha_all_elevatios[,-1], digits = 3)
-alpha_diversity_plot <- create_alpha_plot(elevations[1], elevations[4] + 1)
+alpha_diversity_plot <- create_alpha_plot(elevations[1], elevations[4] + 1, "Alpha Diversity")
 
 p_values_alpha_low <- compute_p_values(elevations[1], elevations[2], "low")
-alpha_diversity_low_plot <- create_alpha_plot(elevations[1], elevations[2])
+alpha_diversity_low_plot <- create_alpha_plot(elevations[1], elevations[2], "Low Altitude Alpha Diversity")
 p_values_alpha_mid <- compute_p_values(elevations[2], elevations[3] + 1, "mid")
-alpha_diversity_mid_plot <- create_alpha_plot(elevations[2], elevations[3])
+alpha_diversity_mid_plot <- create_alpha_plot(elevations[2], elevations[3], "Mid Altitude Alpha Diversity")
 p_values_alpha_high <- compute_p_values(elevations[3], elevations[4] + 1, "high")
-alpha_diversity_high_plot <- create_alpha_plot(elevations[3], elevations[4] + 1)
+alpha_diversity_high_plot <- create_alpha_plot(elevations[3], elevations[4] + 1, "High Altitude Alpha Diversity")
 
 alpha_plot <- ggarrange(alpha_diversity_high_plot, 
                        alpha_diversity_mid_plot, 
@@ -413,7 +413,7 @@ compute_p_values <- function(min_elevation, max_elevation) {
   return(res)
 }
 
-create_within_plot_plot <- function(min_elevation, max_elevation) {
+create_within_plot_plot <- function(min_elevation, max_elevation, title) {
   letters <- multcompLetters(compute_p_values(min_elevation, max_elevation))
   order <- order(names(letters$Letters))
 
@@ -433,7 +433,7 @@ create_within_plot_plot <- function(min_elevation, max_elevation) {
     labs(colour = "Year") +
     xlab("Year") +
     ylab("beta diversity") + 
-    ggtitle("Within Plot Beta-Diversity") + 
+    ggtitle(title) + 
     theme(plot.title = element_text(hjust = 0.5)) +
     geom_text(data = small_letters, aes(x = year, y = quant, label = letters),
           size = 3, 
@@ -449,11 +449,11 @@ within_plot_low_p_values <- compute_p_values(elevations[1], elevations[2])
 within_plot_mid_p_values <- compute_p_values(elevations[2], elevations[3])
 within_plot_high_p_values <- compute_p_values(elevations[3], elevations[4] + 1)
 
-within_betadiversity_by_year_plot <- create_within_plot_plot(elevations[1], elevations[4] + 1)
+within_betadiversity_by_year_plot <- create_within_plot_plot(elevations[1], elevations[4] + 1, "Within Plot Beta-Diversity")
 
-within_diversity_low_plot <- create_within_plot_plot(elevations[1], elevations[2])
-within_diversity_mid_plot <- create_within_plot_plot(elevations[2], elevations[3])
-within_diversity_high_plot <- create_within_plot_plot(elevations[3], elevations[4] + 1)
+within_diversity_low_plot <- create_within_plot_plot(elevations[1], elevations[2], "Low Altitude Within Plot Beta-Diversity")
+within_diversity_mid_plot <- create_within_plot_plot(elevations[2], elevations[3], "Mid Altitude Within Plot Beta-Diversity")
+within_diversity_high_plot <- create_within_plot_plot(elevations[3], elevations[4] + 1, "High Altitude Within Plot Beta-Diversity")
 
 within_plot <- ggarrange(within_diversity_high_plot, 
                          within_diversity_mid_plot, 
