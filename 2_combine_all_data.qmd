@@ -613,7 +613,7 @@ goedick_species[goedick_species == "Potentilla neumanniana"] <- "Potentilla vern
 goedick_species[goedick_species == "Populus nigra"] <- "Populus nigra aggr."
 goedick_species[goedick_species == "Polygonum aviculare"] <- "Polygonum aviculare aggr."
 goedick_species[goedick_species == "Poa violacea"] <- "Poa variegata"
-goedick_species[goedick_species == "Peucedanum austriacum aggr."] <- "Peucedanum austriacum susp. austriacum"
+goedick_species[goedick_species == "Peucedanum austriacum aggr."] <- "Peucedanum austriacum subsp. austriacum"
 goedick_species[goedick_species == "Ononis spinosa"] <- "Ononis spinosa aggr."
 goedick_species[goedick_species == "Nigritella nigra aggr."] <- "Nigritella rhellicani"
 goedick_species[goedick_species == "Luzula sylvatica"] <- "Luzula sylvatica aggr."
