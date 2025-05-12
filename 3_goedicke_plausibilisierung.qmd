@@ -17,11 +17,6 @@ Read combined data:
 data <- read_csv("../Daten/Intermediate/combined_data.csv")
 ```
 
-Simplify selection of goedicke data:
-```{r}
-data$year[data$year == 1995 | data$year == 1996] <- "goedicke"
-```
-
 Compute alpha diversity for different years in different bands:
 ```{r}
 data <- data[!endsWith(data$`Species_unified_2004-23`, "spec."),]
