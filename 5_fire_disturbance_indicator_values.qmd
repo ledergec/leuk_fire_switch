@@ -28,9 +28,6 @@ raw_data <- raw_data[!endsWith(raw_data$`Species_unified_2004-23`, " spec."),]
 
 raw_data$plotid <- raw_data$year * 1000 + raw_data$global_id
 
-mosses <- read_csv("../Daten/Intermediate/moss_taxa.csv")
-raw_data <- raw_data[!(raw_data$`Species_unified_2004-23` %in% mosses$moss_taxa),]
-
 species_names <- unique(raw_data$`Species_unified_2004-23`)
 ```
 

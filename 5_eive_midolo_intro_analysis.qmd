@@ -26,9 +26,6 @@ species <- read_delim("../Daten/Intermediate/combined_data.csv")
 taxon_conversion <- read_delim("../Daten/Intermediate/leuk_landolt_try_midolo_eive_taxon_conversion.csv")
 species <- left_join(species, taxon_conversion, join_by(`Species_unified_2004-23` == infoflora_taxon))
 
-mosses <- read_csv("../Daten/Intermediate/moss_taxa.csv")
-species <- species[!(species$`Species_unified_2004-23` %in% mosses$moss_taxa),]
-
 unique_species <- unique(species$`Species_unified_2004-23`)
 number_of_unique_species <-  sum(!(endsWith(unique_species, "spec.") | endsWith(unique_species, "sp.")))
 number_of_different_years <- length(unique(species$year))

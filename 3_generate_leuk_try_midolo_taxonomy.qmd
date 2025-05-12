@@ -125,10 +125,6 @@ species[m[!is.na(m)]] <- replacements$new[!is.na(m)]
 try_taxa <- species
 try_taxa[!(try_taxa %in% try_species_list$AccSpeciesName)] <- NA
 
-mosses <- read_csv("../Daten/Leuk/Hand Curated/moss_taxa.csv")
-
-species <- species[!species %in% mosses]
-
 inexistent <- c("Potentilla verna / pusilla", "Capsella bursa-pastoris", "Molinia arundinacea", "Itea virginica L.", "Caryophyllaceae sp", "Populus ×canescens", "Amaranthaceae sp", "Einjährig", "Flache lange blätter", "Poaceae", "Caryophyllaceae", "A10", "Asteraceae", "Pflanze", "Keimling 1", "Keimling 2", "Runde blätter", "Sedum montanum", "Lamiaceae", "Apiaceae", "Amelanchier humilis", "Pulmonaria australis / mollis", "Gehölz unbekannt", "Rubus fruticosus aggr. s.l.", "Alchemilla alpina aggr. s.l.", "Eudicot sp", "Viola reichenbachiana / riviniana", "Alchemilla vulgaris aggr. s.l.", "Peucedanum austriacum susp. austriacum", "Apiaceae sp")
 species <- species[!species %in% inexistent]
 
@@ -201,8 +197,6 @@ landolt_taxa[!(landolt_taxa %in% landolt_data$Taxon)] <- NA
 
 write_csv(data.frame(infoflora_taxon = unique_species, try_taxa = try_taxa, landolt_taxa = landolt_taxa), "../Daten/Intermediate/leuk_landolt_try_taxon_conversion.csv")
 
-
-species <- species[!species %in% mosses]
 
 inexistent <- species[endsWith(species, "spec.") | endsWith(species, "sp.")]
 inexistent <- append(inexistent, "Adenostyles alpina")
@@ -400,8 +394,6 @@ species[m[!is.na(m)]] <- replacements$new[!is.na(m)]
 midolo_taxa <- species
 midolo_taxa[!(midolo_taxa %in% midolo_species_list$species)] <- NA
 
-species <- species[!species %in% mosses]
-
 inexistent <- species[endsWith(species, "spec.") | endsWith(species, "sp.")]
 inexistent <- append(inexistent, "Rosa corymbifera")
 inexistent <- append(inexistent, "Anemone narcissiflora")
@@ -577,8 +569,6 @@ species[m[!is.na(m)]] <- replacements$new[!is.na(m)]
 
 eive_taxa <- species
 eive_taxa[!(eive_taxa %in% eive_list$TaxonConcept)] <- NA
-
-species <- species[!species %in% mosses]
 
 inexistent <- species[endsWith(species, "spec.") | endsWith(species, "sp.")]
 inexistent <- append(inexistent, "Einjährig")
