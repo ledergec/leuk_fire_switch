@@ -1,0 +1,222 @@
+---
+title: "neophyte and red list analysis"
+format: html
+---
+
+Load necessary libraries:
+```{r}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+```
+
+Read combined data:
+```{r}
+data <- read_csv("../Daten/Intermediate/combined_data.csv")
+data$`Species_unified_2004-23` <- sub(" cf\\.", "", data$`Species_unified_2004-23`)
+data <- data[!endsWith(data$`Species_unified_2004-23`," spec."),]
+taxon_conversion <- read_csv("../Daten/Intermediate/leuk_landolt_try_midolo_eive_taxon_conversion.csv")
+landolt_data <- read_csv("../Daten/Landolt/2023-03-29_FI-export_Stefan_Widmer.csv")
+
+taxon_conversion$landolt_taxa[startsWith(taxon_conversion$infoflora_taxon, "Salix")]
+temp <- left_join(data, taxon_conversion, join_by(`Species_unified_2004-23` == infoflora_taxon))
+complete_data <- left_join(temp, landolt_data, join_by(landolt_taxa == Taxon))
+```
+
+```{r}
+unique(complete_data$`Species_unified_2004-23`[is.na(complete_data$EG)])
+data_functional_group <- complete_data[!is.na(complete_data$EG),]
+data_functional_group <- data_functional_group[data_functional_group$EG != '-',]
+nrow(data_functional_group) / sum(data_functional_group$EG %in% c('1', '2', '3', '4', '5', '6', '7', '8'))
+
+
+title <- "all altitudes"
+
+create_functional_group_plot <- function(data, title) {
+  data_functional_group <- distinct(data, year, global_id, `Species_unified_2004-23`, EG)
+
+  tmp <- data_functional_group |> 
+    select(year, global_id, EG) |>
+    group_by(year, global_id) |>
+    summarise(
+      p_forest_plant = sum(EG == '1'),
+      p_mountain_plant = sum(EG == '2'),
+      p_low_elevation_pioneer = sum(EG == '3'),
+      p_water = sum(EG == '4'),
+      p_wetland = sum(EG == '5'),
+      p_dry_meadow = sum(EG == '6'),
+      p_ruderal = sum(EG == '7'),
+      p_fertilized_meadow = sum(EG == '8')
+    )
+  
+  plot <- pivot_longer(tmp, c("p_forest_plant", "p_mountain_plant", "p_low_elevation_pioneer", "p_water", "p_wetland", "p_dry_meadow", "p_ruderal", "p_fertilized_meadow")) |> ggplot(aes(fill=name, y=value, x=year)) + 
+      geom_boxplot() +
+      ggtitle(paste("number of plants in functional groups at ", title))
+  ggsave(paste("../Daten/Results/FunctionalGroups/number_of_plants_in_functional_groups_at", title, ".png"), plot = plot)
+  
+  tmp <- data_functional_group |> 
+    select(year, global_id, EG) |>
+    group_by(year, global_id) |>
+    summarise(
+      p_forest_plant = 100 * sum(EG == '1') / length(global_id),
+      p_mountain_plant = 100 * sum(EG == '2') / length(global_id),
+      p_low_elevation_pioneer = 100 * sum(EG == '3') / length(global_id),
+      p_water = 100 * sum(EG == '4') / length(global_id),
+      p_wetland = 100 * sum(EG == '5') / length(global_id),
+      p_dry_meadow = 100 * sum(EG == '6') / length(global_id),
+      p_ruderal = 100 * sum(EG == '7') / length(global_id),
+      p_fertilized_meadow = 100 * sum(EG == '8') / length(global_id)
+    )
+  
+  plot <- pivot_longer(tmp, c("p_forest_plant", "p_mountain_plant", "p_low_elevation_pioneer", "p_water", "p_wetland", "p_dry_meadow", "p_ruderal", "p_fertilized_meadow")) |> ggplot(aes(fill=name, y=value, x=year)) + 
+      geom_boxplot() +
+      ggtitle(paste("% of plants in functional groups at ", title))
+  ggsave(paste("../Daten/Results/FunctionalGroups/percent_plants_in_functional_groups_at", title, ".png"), plot = plot)
+  
+  
+  tmp <- tmp |> 
+    group_by(year) |>
+    summarise(
+      p_forest_plant = mean(p_forest_plant),
+      p_mountain_plant = mean(p_mountain_plant),
+      p_low_elevation_pioneer = mean(p_low_elevation_pioneer),
+      p_water = mean(p_water),
+      p_wetland = mean(p_wetland),
+      p_dry_meadow = mean(p_dry_meadow),
+      p_ruderal = mean(p_ruderal),
+      p_fertilized_meadow = mean(p_fertilized_meadow)
+    ) 
+  
+  tmp <- pivot_longer(tmp, c("p_forest_plant", "p_mountain_plant", "p_low_elevation_pioneer", "p_water", "p_wetland", "p_dry_meadow", "p_ruderal", "p_fertilized_meadow"))
+  
+  plot <- ggplot(tmp, aes(fill=name, y=value, x=year)) + 
+      geom_bar(position="stack", stat="identity") +
+      ggtitle(paste("% of plants in functional groups at ", title))
+  ggsave(paste("../Daten/Results/FunctionalGroups/percent_plants_in_functional_groups_stacked_at", title, ".png"), plot = plot)
+}
+
+create_functional_group_plot(data_functional_group, "all altitudes")
+create_functional_group_plot(data_functional_group[data_functional_group$altitude_band == "high",], "high altitudes")
+create_functional_group_plot(data_functional_group[data_functional_group$altitude_band == "mid",], "mid altitudes")
+create_functional_group_plot(data_functional_group[data_functional_group$altitude_band == "low",], "low altitudes")
+
+```
+
+
+Do a conservative assignment of a status to those which are lacking one
+```{r}
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Centaurea montana"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Prenanthes purpurea"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Alchemilla alpina aggr. s.l."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Urtica dioica"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Lathyrus pratensis"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Hieracium murorum aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Phleum alpinum aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Chaerophyllum hirsutum aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Festuca rubra aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Anthoxanthum odoratum aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Ranunculus montanus aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Carlina vulgaris aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Luzula sylvatica aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Achillea millefolium aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Lotus corniculatus aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Phleum pratense aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Thymus serpyllum aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Vicia sepium"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Vaccinium vitis-idaea"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Festuca varia aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Poa pratensis aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Festuca ovina aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Scabiosa lucida"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Sesleria caerulea"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Ononis repens"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Valeriana officinalis aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Trisetum flavescens"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Potentilla verna / pusilla"] <- "LC" # From Infoflora, both species LC
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Sorbus aria aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Pimpinella major"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Pulmonaria mollis aggr."] <- "NT" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Festuca violacea aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Erigeron alpinus aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Pinus sylvestris"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Amelanchier ovalis"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Adenostyles alpina"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Arenaria serpyllifolia aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Stipa pennata aggr."] <- "NT" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Festuca halleri aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Minuartia verna"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Arenaria ciliata aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Colutea arborescens"] <- "NT" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Ononis spinosa aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Polygonum aviculare aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Rubus fruticosus aggr. s.l."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Thlaspi perfoliatum"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Viola reichenbachiana / riviniana"] <- "LC" # From Infoflora, LC for both species
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Crataegus monogyna aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Galium mollugo aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Ranunculus tuberosus aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Amaranthus hypochondriacus"] <- "(LC)" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Arabis hirsuta aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Populus nigra aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Pulmonaria australis / mollis"] <- "DD" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Alchemilla vulgaris aggr. s.l."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Sagina apetala subsp. apetala"] <- "DD" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Erigeron acris"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Myosotis sylvatica aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Carex muricata aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Centaurea paniculata"] <- "(LC)" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Galium spurium"] <- "VU" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Solidago canadensis aggr."] <- "(LC)" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Hypochaeris uniflora aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Taraxacum officinale aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Crepis sancta"] <- "(LC)" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Bromus riparius"] <- "(LC)" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Populus ×canescens"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Pastinaca sativa"] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Leucanthemum vulgare aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Hieracium umbellatum aggr."] <- "LC" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Stipa eriocaulis"] <- "NT" # From Infoflora
+complete_data$WA[complete_data$`Species_unified_2004-23` == "Crepis pulchra"] <- "(LC)" # From Infoflora
+
+
+unique(complete_data$`Species_unified_2004-23`[is.na(complete_data$WA)])
+complete_data <- complete_data[!is.na(complete_data$WA),]
+```
+
+```{r}
+length(complete_data$WA)
+unique(complete_data$WA)
+
+sum(complete_data$WA[!is.na(complete_data$WA)] == "LC")
+sum(complete_data$WA[!is.na(complete_data$WA)] == "VU")
+sum(complete_data$WA[!is.na(complete_data$WA)] == "NT")
+sum(complete_data$WA[!is.na(complete_data$WA)] == "EN")
+sum(complete_data$WA[!is.na(complete_data$WA)] == "CR")
+sum(complete_data$WA[!is.na(complete_data$WA)] == "DD")
+sum(complete_data$WA[!is.na(complete_data$WA)] == "RE")
+sum(complete_data$WA[!is.na(complete_data$WA)] == "-")
+
+sum(complete_data$WA[!is.na(complete_data$WA)] == "(LC)")
+sum(complete_data$WA[!is.na(complete_data$WA)] == "(VU)")
+sum(complete_data$WA[!is.na(complete_data$WA)] == "(NT)")
+sum(complete_data$WA[!is.na(complete_data$WA)] == "(EN)")
+sum(complete_data$WA[!is.na(complete_data$WA)] == "(CR)")
+sum(complete_data$WA[!is.na(complete_data$WA)] == "(DD)")
+sum(complete_data$WA[!is.na(complete_data$WA)] == "(RE)")
+
+any(is.na(unique(complete_data$`Species_unified_2004-23`)))
+unique(complete_data$`Species_unified_2004-23`[is.na(complete_data$WA)])
+sum(is.na(complete_data$CH))
+unique(complete_data$`Species_unified_2004-23`[complete_data$WA == "RE"])
+unique(complete_data$`Species_unified_2004-23`[complete_data$WA == "CR"])
+unique(complete_data$`Species_unified_2004-23`[complete_data$WA == "EN"])
+unique(complete_data$`Species_unified_2004-23`[complete_data$WA == "CR"])
+unique(complete_data$`Species_unified_2004-23`[complete_data$WA == "CR"])
+
+
+complete_data |> 
+  group_by(global_id, year) |> 
+  summarise()
+```
+
