@@ -26,10 +26,10 @@ sum(data$altitude_band == "low", na.rm = T)
 sum(data$altitude_band == "mid", na.rm = T)
 sum(data$altitude_band == "high", na.rm = T)
 
-number_of_goedicke_plots_included <- length(unique((data$global_id[!is.na(data$min_climax_dist) & (data$min_climax_dist < 180 | data$min_fire_dist < 180)])))
+number_of_goedicke_plots_included <- length(unique((data$global_id[!is.na(data$min_climax_dist) & (data$min_climax_dist < 90 | data$min_fire_dist < 90)])))
 number_of_goedicke_plots_included
 
-summarized_data <- data[is.na(data$min_climax_dist) | data$min_climax_dist < 180 | data$min_fire_dist < 180,] |> # 
+summarized_data <- data[is.na(data$min_climax_dist) | data$min_climax_dist < 90 | data$min_fire_dist < 90,] |> # 
     group_by(year, altitude_band, global_id) |> 
     summarise(n = length(unique(`Species_unified_2004-23`)))
 
