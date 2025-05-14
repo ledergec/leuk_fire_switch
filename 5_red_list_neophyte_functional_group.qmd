@@ -41,17 +41,17 @@ create_functional_group_plot <- function(data, title) {
     select(year, global_id, EG) |>
     group_by(year, global_id) |>
     summarise(
-      p_forest_plant = sum(EG == '1'),
-      p_mountain_plant = sum(EG == '2'),
-      p_low_elevation_pioneer = sum(EG == '3'),
-      p_water = sum(EG == '4'),
-      p_wetland = sum(EG == '5'),
-      p_dry_meadow = sum(EG == '6'),
-      p_ruderal = sum(EG == '7'),
-      p_fertilized_meadow = sum(EG == '8')
+      n_forest_plant = sum(EG == '1'),
+      n_mountain_plant = sum(EG == '2'),
+      n_low_elevation_pioneer = sum(EG == '3'),
+      n_water = sum(EG == '4'),
+      n_wetland = sum(EG == '5'),
+      n_dry_meadow = sum(EG == '6'),
+      n_ruderal = sum(EG == '7'),
+      n_fertilized_meadow = sum(EG == '8')
     )
   
-  plot <- pivot_longer(tmp, c("p_forest_plant", "p_mountain_plant", "p_low_elevation_pioneer", "p_water", "p_wetland", "p_dry_meadow", "p_ruderal", "p_fertilized_meadow")) |> ggplot(aes(fill=name, y=value, x=year)) + 
+  plot <- pivot_longer(tmp, c("n_forest_plant", "n_mountain_plant", "n_low_elevation_pioneer", "n_water", "n_wetland", "n_dry_meadow", "n_ruderal", "n_fertilized_meadow")) |> ggplot(aes(fill=name, y=value, x=year)) + 
       geom_boxplot() +
       ggtitle(paste("number of plants in functional groups at ", title))
   ggsave(paste("../Daten/Results/FunctionalGroups/number_of_plants_in_functional_groups_at", title, ".png"), plot = plot)
