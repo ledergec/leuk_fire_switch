@@ -16,6 +16,7 @@ Read combined data:
 data <- read_csv("../Daten/Intermediate/combined_data.csv")
 data$`Species_unified_2004-23` <- sub(" cf\\.", "", data$`Species_unified_2004-23`)
 data <- data[!endsWith(data$`Species_unified_2004-23`," spec."),]
+data <- data[is.na(data$min_climax_dist) | data$min_climax_dist < 90 | data$min_fire_dist < 90,] # remove goedicke plots which are far away
 taxon_conversion <- read_csv("../Daten/Intermediate/leuk_landolt_try_midolo_eive_taxon_conversion.csv")
 landolt_data <- read_csv("../Daten/Landolt/2023-03-29_FI-export_Stefan_Widmer.csv")
 
