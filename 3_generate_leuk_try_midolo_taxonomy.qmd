@@ -604,7 +604,48 @@ species[!(species %in% eive_list$TaxonConcept)]
 length(species)
 ```
 
+
 ```{r}
-write_csv(data.frame(infoflora_taxon = unique_species, try_taxa = try_taxa, landolt_taxa = landolt_taxa, midolo_taxa = midolo_taxa, eive_taxa = eive_taxa), "../Daten/Intermediate/leuk_landolt_try_midolo_eive_taxon_conversion.csv")
+check_list <- read_csv("../Daten/InfoFlora/Checklist_2017_simple_version_20230503.csv")
+
+manual_translation <- data.frame(infoflora = character(), check_list = character())
+manual_translation <- add_row(manual_translation, infoflora = "Alchemilla alpina aggr. s.l.", check_list = "Alchemilla alpina superaggr.")
+manual_translation <- add_row(manual_translation, infoflora = "Peucedanum austriacum susp. austriacum", check_list = "Peucedanum austriacum (Jacq.) W. D. J. Koch subsp. austriacum")
+manual_translation <- add_row(manual_translation, infoflora = "Scabiosa columbaria subsp. columbaria", check_list = "Scabiosa columbaria L. subsp. columbaria")
+manual_translation <- add_row(manual_translation, infoflora = "Pulsatilla alpina", check_list = "Pulsatilla alpina (L.) Delarbre")
+manual_translation <- add_row(manual_translation, infoflora = "Senecio ovatus", check_list = "Senecio ovatus (G. Gaertn. & al.) Willd.")
+manual_translation <- add_row(manual_translation, infoflora = "Prunus padus subsp. padus", check_list = "Prunus padus L. subsp. padus")
+manual_translation <- add_row(manual_translation, infoflora = "Sagina apetala subsp. apetala", check_list = "Sagina apetala Ard. subsp. apetala")
+manual_translation <- add_row(manual_translation, infoflora = "Luzula luzuloides subsp. luzuloides", check_list = "Luzula luzuloides (Lam.) Dandy & Wilmott subsp. luzuloides")
+manual_translation <- add_row(manual_translation, infoflora = "Scorzonera laciniata subsp. laciniata", check_list = "Scorzonera laciniata L. subsp. laciniata")
+manual_translation <- add_row(manual_translation, infoflora = "Euphrasia rostkoviana subsp. rostkoviana", check_list = "Euphrasia rostkoviana Hayne subsp. rostkoviana")
+manual_translation <- add_row(manual_translation, infoflora = "Veronica prostrata subsp. prostrata", check_list = "Veronica prostrata L. subsp. prostrata")
+manual_translation <- add_row(manual_translation, infoflora = "Artemisia campestris", check_list = "Artemisia campestris L.")
+manual_translation <- add_row(manual_translation, infoflora = "Hypochaeris uniflora aggr.", check_list = "Hypochaeris uniflora Vill.")
+
+check_list_names <- rep(NA, length(unique_species))
+for(i in 1:length(unique_species)){
+  spec <- unique_species[i]
+  if(spec %in% manual_translation$infoflora) {
+    check_list_names[i] <- manual_translation$check_list[manual_translation$infoflora == spec]
+  } else if(sum(startsWith(check_list$Taxonname, spec)) == 1) {
+    check_list_names[i] <- check_list$Taxonname[startsWith(check_list$Taxonname, spec)]
+  } else if(!endsWith(spec, " aggr.")) {
+    if(sum((startsWith(check_list$Taxonname, spec) & !endsWith(check_list$Taxonname, " aggr."))) == 1) {
+      check_list_names[i] <- check_list$Taxonname[startsWith(check_list$Taxonname, spec) & !endsWith(check_list$Taxonname, " aggr.")]
+    } else if(!grepl(" subsp\\. ", spec) && sum((startsWith(check_list$Taxonname, spec) & !grepl(" subsp\\. ", check_list$Taxonname))) == 1) {
+      check_list_names[i] <- check_list$Taxonname[startsWith(check_list$Taxonname, spec) & !grepl(" subsp\\. ", check_list$Taxonname)]
+    }
+  }
+}
+
+check_list$Taxonname[startsWith(check_list$Taxonname, "Amelanchier")]
+sum(is.na(check_list_names))
+unique_species[is.na(check_list_names) & !endsWith(unique_species, " spec.")]
+unique_species[is.na(check_list_names) & endsWith(unique_species, " aggr.")]
+```
+
+```{r}
+write_csv(data.frame(infoflora_taxon = unique_species, try_taxa = try_taxa, landolt_taxa = landolt_taxa, midolo_taxa = midolo_taxa, eive_taxa = eive_taxa, check_list = check_list_names), "../Daten/Intermediate/leuk_landolt_try_midolo_eive_taxon_conversion.csv")
 ```
 
