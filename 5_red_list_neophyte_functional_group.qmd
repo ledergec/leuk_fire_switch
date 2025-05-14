@@ -104,4 +104,111 @@ create_functional_group_plot(data_functional_group[data_functional_group$altitud
 
 ```
 
+Do red list analysis:
+```{r}
+title <- "all altitude"
+
+analyze_red_list_data <- function(data, title) {
+  tmp <- data |> 
+    select(year, global_id, CAT) |>
+    group_by(year, global_id) |>
+    summarise(
+      n_lc = sum(CAT == 'LC'),
+      n_nt = sum(CAT == 'NT'),
+      n_vu = sum(CAT == 'VU'),
+      n_cr = sum(CAT == 'CR'),
+      n_en = sum(CAT == 'EN')
+    )
+  
+  plot <- pivot_longer(tmp, c("n_nt", "n_vu", "n_cr", "n_en")) |> ggplot(aes(fill=name, y=value, x=year)) + 
+      geom_boxplot() +
+      ggtitle(paste("number of plants per plot in red list categories at ", title))
+  ggsave(paste("../Daten/Results/RedList/number_of_plants_per_plot_in_red_list_cat_at", title, ".png"), plot = plot)
+  
+  
+  tmp <- data |> 
+    select(year, global_id, CAT) |>
+    group_by(year) |>
+    summarise(
+      n_lc = sum(CAT == 'LC') / length(unique(global_id)),
+      n_nt = sum(CAT == 'NT') / length(unique(global_id)),
+      n_vu = sum(CAT == 'VU') / length(unique(global_id)),
+      n_cr = sum(CAT == 'CR') / length(unique(global_id)),
+      n_en = sum(CAT == 'EN') / length(unique(global_id))
+    )
+  
+  plot <-  pivot_longer(tmp, c("n_nt", "n_vu", "n_cr", "n_en")) |> ggplot(aes(fill=name, y=value, x=year)) + 
+      geom_bar(position="stack", stat="identity") +
+      ggtitle(paste("number of red list plant observation per plot at ", title))
+  ggsave(paste("../Daten/Results/RedList/number_of_plants_per_plot_in_red_list_cat_stacked_at", title, ".png"), plot = plot)
+  
+  tmp <- data |> 
+    select(year, global_id, CAT) |>
+    group_by(year, global_id) |>
+    summarise(
+      p_lc = 100 * sum(CAT == 'LC') / length(global_id),
+      p_nt = 100 * sum(CAT == 'NT') / length(global_id),
+      p_vu = 100 * sum(CAT == 'VU') / length(global_id),
+      p_cr = 100 * sum(CAT == 'CR') / length(global_id),
+      p_en = 100 * sum(CAT == 'EN') / length(global_id)
+    )
+  
+  plot <- pivot_longer(tmp, c("p_nt", "p_vu", "p_cr", "p_en")) |> ggplot(aes(fill=name, y=value, x=year)) + 
+      geom_boxplot() +
+      ggtitle(paste("% of plants on each plot in red list cat at ", title))
+  ggsave(paste("../Daten/Results/RedList/percent_plants_in_plots_in_red_list_cat_at", title, ".png"), plot = plot)
+  
+  
+  tmp <- tmp |> 
+    group_by(year) |>
+    summarise(
+      p_lc = mean(p_lc),
+      p_nt = mean(p_nt),
+      p_vu = mean(p_vu),
+      p_cr = mean(p_cr),
+      p_en = mean(p_en)
+    ) 
+  
+  tmp <- pivot_longer(tmp, c("p_nt", "p_vu", "p_cr", "p_en"))
+  
+  plot <- ggplot(tmp, aes(fill=name, y=value, x=year)) + 
+      geom_bar(position="stack", stat="identity") +
+      ggtitle(paste("% of plants on plots in red list cat at ", title))
+  ggsave(paste("../Daten/Results/RedList/percent_plants_in_plots_in_red_list_cat_stacked_at", title, ".png"), plot = plot)
+  
+  
+  data <- distinct(data, year, `Species_unified_2004-23`, CAT)
+  tmp <- data |> 
+    select(year, CAT) |>
+    group_by(year) |>
+    summarise(
+      n_lc = sum(CAT == 'LC'),
+      n_nt = sum(CAT == 'NT'),
+      n_vu = sum(CAT == 'VU'),
+      n_cr = sum(CAT == 'CR'),
+      n_en = sum(CAT == 'EN')
+    )
+  
+  tmp <- pivot_longer(tmp, c("n_nt", "n_vu", "n_cr", "n_en"))
+  
+  plot <- ggplot(tmp, aes(fill=name, y=value, x=year)) + 
+      geom_bar(position="stack", stat="identity") +
+      ggtitle(paste("total number of plants species in red list category at ", title))
+  ggsave(paste("../Daten/Results/RedList/total_number_of_red_list_species_by_year_at_", title, ".png"), plot = plot)
+}
+
+red_list <- read_csv("../Daten/RedList/RL_Arten_2016.csv")
+
+complete_data <- left_join(data, red_list, join_by(`Species_unified_2004-23` == `Scientific name`))
+complete_data <- complete_data[!is.na(complete_data$CAT),]
+
+write_csv(distinct(complete_data, year, `Species_unified_2004-23`, altitude_band, CAT), "../Daten/Results/RedList/red_list_species_by_year_and_altitude.csv")
+
+data_red_list <- distinct(complete_data, year, global_id, `Species_unified_2004-23`, altitude_band, CAT)
+
+analyze_red_list_data(data_red_list, "all altitudes")
+analyze_red_list_data(data_red_list[data_red_list$altitude_band == "high",], "high altitudes")
+analyze_red_list_data(data_red_list[data_red_list$altitude_band == "mid",], "mid altitudes")
+analyze_red_list_data(data_red_list[data_red_list$altitude_band == "low",], "low altitudes")
+```
 
