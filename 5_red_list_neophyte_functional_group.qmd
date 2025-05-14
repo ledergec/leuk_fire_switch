@@ -20,9 +20,15 @@ data <- data[is.na(data$min_climax_dist) | data$min_climax_dist < 90 | data$min_
 taxon_conversion <- read_csv("../Daten/Intermediate/leuk_landolt_try_midolo_eive_taxon_conversion.csv")
 landolt_data <- read_csv("../Daten/Landolt/2023-03-29_FI-export_Stefan_Widmer.csv")
 
-taxon_conversion$landolt_taxa[startsWith(taxon_conversion$infoflora_taxon, "Salix")]
+check_list <- read_csv("../Daten/InfoFlora/Checklist_2017_simple_version_20230503.csv")
+check_list$neophyt <- !is.na(check_list$`Indigenat CH`) & check_list$`Indigenat CH` %in% c("N", "NA", "NC")
+
+red_list <- read_csv("../Daten/RedList/RL_Arten_2016.csv")
+
 temp <- left_join(data, taxon_conversion, join_by(`Species_unified_2004-23` == infoflora_taxon))
 complete_data <- left_join(temp, landolt_data, join_by(landolt_taxa == Taxon))
+complete_data <- left_join(complete_data, check_list, join_by(check_list == Taxonname))
+complete_data <- left_join(complete_data, red_list, join_by(`Species_unified_2004-23` == `Scientific name`))
 ```
 
 ```{r}
@@ -197,18 +203,103 @@ analyze_red_list_data <- function(data, title) {
   ggsave(paste("../Daten/Results/RedList/total_number_of_red_list_species_by_year_at_", title, ".png"), plot = plot)
 }
 
-red_list <- read_csv("../Daten/RedList/RL_Arten_2016.csv")
-
-complete_data <- left_join(data, red_list, join_by(`Species_unified_2004-23` == `Scientific name`))
-complete_data <- complete_data[!is.na(complete_data$CAT),]
+red_list_data <- complete_data[!is.na(complete_data$CAT),]
 
 write_csv(distinct(complete_data, year, `Species_unified_2004-23`, altitude_band, CAT), "../Daten/Results/RedList/red_list_species_by_year_and_altitude.csv")
 
-data_red_list <- distinct(complete_data, year, global_id, `Species_unified_2004-23`, altitude_band, CAT)
+data_red_list <- distinct(red_list_data, year, global_id, `Species_unified_2004-23`, altitude_band, CAT)
 
 analyze_red_list_data(data_red_list, "all altitudes")
 analyze_red_list_data(data_red_list[data_red_list$altitude_band == "high",], "high altitudes")
 analyze_red_list_data(data_red_list[data_red_list$altitude_band == "mid",], "mid altitudes")
 analyze_red_list_data(data_red_list[data_red_list$altitude_band == "low",], "low altitudes")
+```
+
+
+
+Do neophyte analysis:
+```{r}
+title <- "all altitude"
+
+complete_data$neophyt[is.na(complete_data$neophyt)] <- F
+unique(complete_data$`Species_unified_2004-23`[complete_data$neophyt])
+complete_data[is.na(complete_data$`Species_unified_2004-23`),]
+complete_data[is.na(complete_data$neophyt),]
+
+data <- complete_data
+
+analyze_neophyte_data <- function(data, title) {
+  tmp <- data |> 
+    select(year, global_id, neophyt) |>
+    group_by(year, global_id) |>
+    summarise(
+      n_neophyte = sum(neophyt)
+    )
+  
+  plot <- tmp |> ggplot(aes(y=n_neophyte, x=year)) + 
+      geom_boxplot() +
+      ggtitle(paste("number of neophyte species per plot at ", title))
+  ggsave(paste("../Daten/Results/Neophyte/number_of_neophytes_per_plot_at", title, ".png"), plot = plot)
+  
+  
+  tmp <- data |> 
+    select(year, global_id, neophyt) |>
+    group_by(year) |>
+    summarise(
+      n_neophyte = sum(neophyt) / length(unique(global_id))
+    )
+  
+  plot <-  tmp |> ggplot(aes(y=n_neophyte, x=year)) + 
+      geom_bar(position="stack", stat="identity") +
+      ggtitle(paste("number of neophyte observations per plot at ", title))
+  ggsave(paste("../Daten/Results/Neophyte/number_of_neophytes_per_plot_barplot_", title, ".png"), plot = plot)
+  
+  tmp <- data |> 
+    select(year, global_id, neophyt) |>
+    group_by(year, global_id) |>
+    summarise(
+      p_neophyte = 100 * sum(neophyt) / length(global_id)
+    )
+  
+  plot <- tmp |> ggplot(aes(y=p_neophyte, x=year)) + 
+      geom_boxplot() +
+      ggtitle(paste("% of neophytes on each plot at ", title))
+  ggsave(paste("../Daten/Results/Neophyte/percent_neophytes_on_plots_at", title, ".png"), plot = plot)
+  
+  
+  tmp <- tmp |> 
+    group_by(year) |>
+    summarise(
+      p_neophyte = mean(p_neophyte)
+    )
+  
+  plot <- ggplot(tmp, aes(y=p_neophyte, x=year)) + 
+      geom_bar(position="stack", stat="identity") +
+      ggtitle(paste("% of neophytes on plots at ", title))
+  ggsave(paste("../Daten/Results/Neophyte/percent_neophytes_in_plots_at", title, ".png"), plot = plot)
+  
+  
+  data <- distinct(data, year, `Species_unified_2004-23`, neophyt)
+  tmp <- data |> 
+    select(year, neophyt) |>
+    group_by(year) |>
+    summarise(
+      n_neophyte = sum(neophyt)
+    )
+  
+  plot <- ggplot(tmp, aes(y=n_neophyte, x=year)) + 
+      geom_bar(position="stack", stat="identity") +
+      ggtitle(paste("total number of neophyte species at ", title))
+  ggsave(paste("../Daten/Results/Neophyte/total_number_of_neophyte_species_by_year_at_", title, ".png"), plot = plot)
+}
+
+write_csv(distinct(complete_data, year, `Species_unified_2004-23`, altitude_band, neophyt), "../Daten/Results/Neophyte/neophyte_species_by_year_and_altitude.csv")
+
+data_neophyte <- distinct(complete_data, year, global_id, `Species_unified_2004-23`, altitude_band, neophyt)
+
+analyze_neophyte_data(data_neophyte, "all altitudes")
+analyze_neophyte_data(data_neophyte[data_neophyte$altitude_band == "high",], "high altitudes")
+analyze_neophyte_data(data_neophyte[data_neophyte$altitude_band == "mid",], "mid altitudes")
+analyze_neophyte_data(data_neophyte[data_neophyte$altitude_band == "low",], "low altitudes")
 ```
 
