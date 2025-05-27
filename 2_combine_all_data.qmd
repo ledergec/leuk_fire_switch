@@ -874,6 +874,12 @@ data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Apiaceae"] <- 
 data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Poaceae"] <- "Poaceae spec."
 data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Caryophyllaceae"] <- "Caryophyllaceae spec."
 data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Lamiaceae"] <- "Lamiaceae spec."
+
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Knautia cf. dipsacifolia"] <- "Knautia spec."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Knautia arvensis"] <- "Knautia spec."
+
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Melampyrum sylvaticum"] <- "Melampyrum spec."
+data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Melampyrum pratense"] <- "Melampyrum spec."
 ```
 
 Correct subsp. for species in climax vegetation:
