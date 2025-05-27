@@ -17,6 +17,8 @@ data <- read_csv("../Daten/Intermediate/combined_data.csv")
 data$`Species_unified_2004-23` <- sub(" cf\\.", "", data$`Species_unified_2004-23`)
 data <- data[!endsWith(data$`Species_unified_2004-23`," spec."),]
 data <- data[is.na(data$min_climax_dist) | data$min_climax_dist < 90 | data$min_fire_dist < 90,] # remove goedicke plots which are far away
+
+data$year <- factor(data$year, levels = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax"))
 taxon_conversion <- read_csv("../Daten/Intermediate/leuk_landolt_try_midolo_eive_taxon_conversion.csv")
 landolt_data <- read_csv("../Daten/Landolt/2023-03-29_FI-export_Stefan_Widmer.csv")
 
@@ -204,15 +206,39 @@ analyze_red_list_data <- function(data, title) {
 }
 
 red_list_data <- complete_data[!is.na(complete_data$CAT),]
-
-write_csv(distinct(complete_data, year, `Species_unified_2004-23`, altitude_band, CAT), "../Daten/Results/RedList/red_list_species_by_year_and_altitude.csv")
-
 data_red_list <- distinct(red_list_data, year, global_id, `Species_unified_2004-23`, altitude_band, CAT)
 
 analyze_red_list_data(data_red_list, "all altitudes")
 analyze_red_list_data(data_red_list[data_red_list$altitude_band == "high",], "high altitudes")
 analyze_red_list_data(data_red_list[data_red_list$altitude_band == "mid",], "mid altitudes")
 analyze_red_list_data(data_red_list[data_red_list$altitude_band == "low",], "low altitudes")
+```
+
+Generate .csv file for red-list and neophyte species:
+```{r}
+
+tmp <- complete_data |> 
+  group_by(year, `Species_unified_2004-23`) |>
+  summarise(n_total = length(altitude_band),
+            n_high = sum(altitude_band == "high"),
+            n_mid = sum(altitude_band == "mid"),
+            n_low = sum(altitude_band == "low"))
+
+tmp[is.na(tmp$`Species_unified_2004-23`),]
+complete_data[is.na(complete_data$`Species_unified_2004-23`),]
+
+tmp[tmp$`Species_unified_2004-23` == "Abies alba",]
+tmp <- pivot_wider(tmp, names_from = c("year"), values_from = c("n_total", "n_high", "n_mid", "n_low"))
+tmp[is.na(tmp)] <- 0
+tmp <- left_join(tmp, red_list, join_by(`Species_unified_2004-23` == `Scientific name`))
+tmp <- left_join(tmp, taxon_conversion, join_by(`Species_unified_2004-23` == infoflora_taxon))
+tmp <- left_join(tmp, check_list, join_by(check_list == Taxonname))
+
+tmp$n_total_all_years <- tmp$n_total_goedicke + tmp$n_total_2004 + tmp$n_total_2005 + tmp$n_total_2006 + tmp$n_high_2006 + tmp$n_total_2007 + tmp$n_high_2013 + tmp$n_high_2023 + tmp$n_high_climax
+
+tmp <- distinct(tmp, `Species_unified_2004-23`, n_total_all_years, n_total_goedicke, n_total_2004, n_total_2005, n_total_2006, n_total_2007, n_total_2013, n_total_2023, n_total_climax, n_high_goedicke, n_high_2004, n_high_2005, n_high_2006, n_high_2007, n_high_2013, n_high_2023, n_high_climax, n_mid_goedicke, n_mid_2004, n_mid_2005, n_mid_2006, n_mid_2007, n_mid_2013, n_mid_2023, n_mid_climax, n_low_goedicke, n_low_2004, n_low_2005, n_low_2006, n_low_2007, n_low_2013, n_low_2023, n_low_climax, CAT, neophyt, `Indigenat CH`)
+View(tmp)
+write_csv(tmp, "../Daten/Results/RedList/red_list_species_by_year_and_altitude.csv")
 ```
 
 
@@ -292,8 +318,6 @@ analyze_neophyte_data <- function(data, title) {
       ggtitle(paste("total number of neophyte species at ", title))
   ggsave(paste("../Daten/Results/Neophyte/total_number_of_neophyte_species_by_year_at_", title, ".png"), plot = plot)
 }
-
-write_csv(distinct(complete_data, year, `Species_unified_2004-23`, altitude_band, neophyt), "../Daten/Results/Neophyte/neophyte_species_by_year_and_altitude.csv")
 
 data_neophyte <- distinct(complete_data, year, global_id, `Species_unified_2004-23`, altitude_band, neophyt)
 
