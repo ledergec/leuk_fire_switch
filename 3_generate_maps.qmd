@@ -1,0 +1,95 @@
+---
+title: "generate_plot_locations_maps"
+format: html
+---
+
+Load required packages:
+```{r}
+library(readr)
+library(terra)
+library(readxl)
+library(tidyverse)
+```
+
+
+Plot all plots on a map, to visualize them.
+```{r}
+data <- read_delim("../Daten/Intermediate/combined_data.csv")
+
+data$order <- 1
+data$order[data$year == "goedicke"] <- 2
+data <- arrange(data, order)
+
+
+data$color <- 'red'
+
+data$color[data$year == "goedicke"] <- 'orange'
+data$color[data$year == "goedicke" & data$in_vicinity] <- 'white'
+data$color[data$year == "climax"] <- 'blue'
+
+data$sign <- 15
+data$sign[data$year == "goedicke"] <- 20
+
+data <- distinct(data, global_id, coordX, coordY, color, sign)
+data$coordY <- data$coordY + 1000000
+data$coordX <- data$coordX + 2000000
+
+png(filename = "../Daten/Results/Maps/all_plots.png", width = 2581, height = 2628, res = 72)
+rel <- rast("../Daten/QGIS/swiss-map-raster25-clipped.tif")
+raster::plotRGB(rel, smooth = T, maxpixels = 2628*2581*2)
+points(x = data$coordX, y = data$coordY, col = data$color, pch = data$sign, cex = 7)
+# add labels with global ids to the plots
+text(x = data$coordX, y = data$coordY, as.character(data$global_id), col = "black")
+dev.off()
+```
+
+Plot all plots on a map which are "close" to the fire.
+```{r}
+data <- read_delim("../Daten/Intermediate/combined_data.csv")
+data <- data[data$in_vicinity,]
+
+data$order <- 1
+data$order[data$year == "goedicke"] <- 2
+data <- arrange(data, order)
+
+data$color <- 'red'
+data$color[data$year == "goedicke"] <- 'black'
+data$color[data$year == "climax"] <- 'blue'
+
+data$sign <- 15
+data$sign[data$year == "goedicke"] <- 20
+
+data <- distinct(data, global_id, coordX, coordY, color, sign)
+data$coordY <- data$coordY + 1000000
+data$coordX <- data$coordX + 2000000
+
+png(filename = "../Daten/Results/Maps/fire_plots.png", width = 2581, height = 2628, res = 72)
+rel <- rast("../Daten/QGIS/swiss-map-raster25-clipped.tif")
+raster::plotRGB(rel, smooth = T, maxpixels = 2628*2581*2)
+points(x = data$coordX, y = data$coordY, col = data$color, pch = data$sign, cex = 7)
+dev.off()
+```
+
+Plot the fire and climax plots on a map.
+```{r}
+data <- read_delim("../Daten/Intermediate/combined_data.csv")
+data <- data[data$year != "goedicke",]
+data$color <- 'red'
+data$color[data$year == "climax"] <- 'blue'
+
+data$sign <- 15
+
+data <- distinct(data, global_id, coordX, coordY, color, sign)
+data$coordY <- data$coordY + 1000000
+data$coordX <- data$coordX + 2000000
+
+png(filename = "../Daten/Results/Maps/climax_plots.png", width = 2581, height = 2628, res = 72)
+rel <- rast("../Daten/QGIS/swiss-map-raster25-clipped.tif")
+raster::plotRGB(rel, smooth = T, maxpixels = 2628*2581*2)
+points(x = data$coordX, y = data$coordY, col = data$color, pch = data$sign, cex = 7)
+# # add labels with global ids to the plots
+# text(x = data$coordX, y = data$coordY, as.character(data$global_id), col = "black")
+dev.off()
+```
+
+
