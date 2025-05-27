@@ -21,6 +21,7 @@ library(stringi)
 Read in the data an compute some basic metrics:
 ```{r}
 species <- read_delim("../Daten/Intermediate/combined_data.csv")
+species <- species[species$year != "goedicke" | species$in_vicinity,] # Remove goedicke plots which are far away
 
 taxon_conversion <- read_delim("../Daten/Intermediate/leuk_landolt_try_midolo_eive_taxon_conversion.csv")
 species <- left_join(species, taxon_conversion, join_by(`Species_unified_2004-23` == infoflora_taxon))

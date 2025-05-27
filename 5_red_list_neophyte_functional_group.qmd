@@ -21,7 +21,7 @@ labels=data.frame(years = c("goedicke", "2004", "2005", "2006", "2007", "2013", 
 data <- read_csv("../Daten/Intermediate/combined_data.csv")
 data$`Species_unified_2004-23` <- sub(" cf\\.", "", data$`Species_unified_2004-23`)
 data <- data[!endsWith(data$`Species_unified_2004-23`," spec."),]
-data <- data[is.na(data$min_climax_dist) | data$min_climax_dist < 90 | data$min_fire_dist < 90,] # remove goedicke plots which are far away
+data <- data[data$year != "goedicke" | data$in_vicinity,] # remove goedicke plots which are far away
 
 data$year <- factor(data$year, levels = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax"))
 taxon_conversion <- read_csv("../Daten/Intermediate/leuk_landolt_try_midolo_eive_taxon_conversion.csv")
@@ -52,7 +52,7 @@ create_functional_group_plot <- function(data, title) {
   data_functional_group <- distinct(data, year, global_id, `Species_unified_2004-23`, EG)
 
   tmp <- data_functional_group |> 
-    select(year, global_id, EG) |>
+    dplyr::select(year, global_id, EG) |>
     group_by(year, global_id) |>
     summarise(
       n_forest_plant = sum(EG == '1'),
@@ -71,7 +71,7 @@ create_functional_group_plot <- function(data, title) {
   ggsave(paste("../Daten/Results/FunctionalGroups/number_of_plants_in_functional_groups_at", title, ".png"), plot = plot)
   
   tmp <- data_functional_group[data_functional_group$year %in% selected_years,] |> 
-    select(year, global_id, EG) |>
+    dplyr::select(year, global_id, EG) |>
     group_by(year, global_id) |>
     summarise(
       p_forest_plant = 100 * sum(EG == '1') / length(global_id),
@@ -134,7 +134,7 @@ title <- "all altitude"
 
 analyze_red_list_data <- function(data, title) {
   tmp <- data |> 
-    select(year, global_id, CAT) |>
+    dplyr::select(year, global_id, CAT) |>
     group_by(year, global_id) |>
     summarise(
       n_lc = sum(CAT == 'LC'),
@@ -151,7 +151,7 @@ analyze_red_list_data <- function(data, title) {
   
   
   tmp <- data |> 
-    select(year, global_id, CAT) |>
+    dplyr::select(year, global_id, CAT) |>
     group_by(year) |>
     summarise(
       n_lc = sum(CAT == 'LC') / length(unique(global_id)),
@@ -167,7 +167,7 @@ analyze_red_list_data <- function(data, title) {
   ggsave(paste("../Daten/Results/RedList/number_of_plants_per_plot_in_red_list_cat_stacked_at", title, ".png"), plot = plot)
   
   tmp <- data |> 
-    select(year, global_id, CAT) |>
+    dplyr::select(year, global_id, CAT) |>
     group_by(year, global_id) |>
     summarise(
       p_lc = 100 * sum(CAT == 'LC') / length(global_id),
@@ -203,7 +203,7 @@ analyze_red_list_data <- function(data, title) {
   
   data <- distinct(data, year, `Species_unified_2004-23`, CAT)
   tmp <- data |> 
-    select(year, CAT) |>
+    dplyr::select(year, CAT) |>
     group_by(year) |>
     summarise(
       n_lc = sum(CAT == 'LC'),
@@ -272,7 +272,7 @@ data <- complete_data
 
 analyze_neophyte_data <- function(data, title) {
   tmp <- data |> 
-    select(year, global_id, neophyt) |>
+    dplyr::select(year, global_id, neophyt) |>
     group_by(year, global_id) |>
     summarise(
       n_neophyte = sum(neophyt)
@@ -285,7 +285,7 @@ analyze_neophyte_data <- function(data, title) {
   
   
   tmp <- data |> 
-    select(year, global_id, neophyt) |>
+    dplyr::select(year, global_id, neophyt) |>
     group_by(year) |>
     summarise(
       n_neophyte = sum(neophyt) / length(unique(global_id))
@@ -297,7 +297,7 @@ analyze_neophyte_data <- function(data, title) {
   ggsave(paste("../Daten/Results/Neophyte/number_of_neophytes_per_plot_barplot_", title, ".png"), plot = plot)
   
   tmp <- data |> 
-    select(year, global_id, neophyt) |>
+    dplyr::select(year, global_id, neophyt) |>
     group_by(year, global_id) |>
     summarise(
       p_neophyte = 100 * sum(neophyt) / length(global_id)
@@ -323,7 +323,7 @@ analyze_neophyte_data <- function(data, title) {
   
   data <- distinct(data, year, `Species_unified_2004-23`, neophyt)
   tmp <- data |> 
-    select(year, neophyt) |>
+    dplyr::select(year, neophyt) |>
     group_by(year) |>
     summarise(
       n_neophyte = sum(neophyt)

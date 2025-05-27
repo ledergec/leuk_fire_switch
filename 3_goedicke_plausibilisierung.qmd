@@ -21,15 +21,16 @@ Compute alpha diversity for different years in different bands:
 ```{r}
 data <- data[!endsWith(data$`Species_unified_2004-23`, "spec."),]
 data$`Species_unified_2004-23` <- sub(" cf\\.", "", data$`Species_unified_2004-23`)
+data <- data[data$year != "goedicke" | data$in_vicinity,] # Remove goedicke plots which are far away
 
 sum(data$altitude_band == "low", na.rm = T)
 sum(data$altitude_band == "mid", na.rm = T)
 sum(data$altitude_band == "high", na.rm = T)
 
-number_of_goedicke_plots_included <- length(unique((data$global_id[!is.na(data$min_climax_dist) & (data$min_climax_dist < 90 | data$min_fire_dist < 90)])))
+number_of_goedicke_plots_included <- length(unique((data$global_id[data$year == "goedicke" & data$in_vicinity])))
 number_of_goedicke_plots_included
 
-summarized_data <- data[is.na(data$min_climax_dist) | data$min_climax_dist < 90 | data$min_fire_dist < 90,] |> # 
+summarized_data <- data |> # 
     group_by(year, altitude_band, global_id) |> 
     summarise(n = length(unique(`Species_unified_2004-23`)))
 
@@ -46,10 +47,10 @@ data <- data[!(data$`Species_unified_2004-23` %in% c("Gehölz unbekannt", "Keiml
 
 title <- "all altitudes"
 analyze_seed_backpressure <- function(data, title) {
-  length(unique(data$global_id[data$year == "goedicke" & (data$min_climax_dist < 90 | data$min_fire_dist < 90)]))
+  length(unique(data$global_id[data$year == "goedicke"]))
   length(unique(data$global_id[data$year == "climax"]))
   
-  goedicke_species <- unique(data$`Species_unified_2004-23`[data$year == "goedicke" & (data$min_climax_dist < 90 | data$min_fire_dist < 90)])
+  goedicke_species <- unique(data$`Species_unified_2004-23`[data$year == "goedicke"])
   goedicke_species
   
   climax_species <- unique(data$`Species_unified_2004-23`[data$year == "climax"])

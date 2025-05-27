@@ -967,6 +967,15 @@ final_data$year[final_data$year == 1995] <- "goedicke"
 final_data$year[final_data$year == 1996] <- "goedicke"
 ```
 
+Label all plots of goedicke which have been manually been selected to be close to the fire:
+```{r}
+ids_in_vicinity <- c(95156, 96267, 95143, 95123, 96255, 95117, 95104, 95101, 95081, 95070, 96228, 95124, 96252)
+
+final_data$in_vicinity <- T
+final_data$in_vicinity[final_data$year == "goedicke"] <- F
+final_data$in_vicinity[final_data$year == "goedicke" & (final_data$min_climax_dist < 90 | final_data$min_fire_dist < 90 | final_data$global_id %in% ids_in_vicinity)] <- T
+```
+
 
 Write the result to file
 ```{r}

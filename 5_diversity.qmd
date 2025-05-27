@@ -26,7 +26,7 @@ Read in the vegetation data from the Leuk fire sampling.
 ```{r}
 raw_data <- read_delim("../Daten/Intermediate/combined_data.csv")
 # remove plots from goedicke which are not close to the fire or climax data
-raw_data <- raw_data[raw_data$year != "goedicke" | raw_data$min_climax_dist < 180 | raw_data$min_fire_dist < 180,]
+raw_data <- raw_data[raw_data$year != "goedicke" | raw_data$in_vicinity,]
 
 transformed_data <- read_delim("../Daten/Intermediate/incidence_matrix.csv")
 transformed_data$year[transformed_data$year == 2178] <- "climax"

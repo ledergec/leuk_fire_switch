@@ -16,6 +16,7 @@ Read in the vegetation data from the Leuk fire sampling. We only keep plots abov
 ```{r}
 raw_data <- read_delim("../Daten/Intermediate/combined_data.csv")
 raw_data <- raw_data[!is.na(raw_data$percentage200),] # we can only use data where the cover is present and afford dropping this single entry
+raw_data <- raw_data[raw_data$year != "goedicke" | raw_data$in_vicinity,] # Remove goedicke plots which are far away
 
 species_names <- unique(raw_data$`Species_unified_2004-23`)
 length(species_names)
