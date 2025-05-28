@@ -33,10 +33,14 @@ transformed_data$year[transformed_data$year == 2178] <- "climax"
 transformed_data$year[transformed_data$year == 1995] <- "goedicke"
 # remove plots from goedicke which are not close to the fire or climax data
 transformed_data <- transformed_data[(transformed_data$plotid %% 100000) %in% unique(raw_data$global_id),]
-transformed_data$year <- as.factor(transformed_data$year)
+transformed_data$year <- factor(transformed_data$year, levels = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax"))
+
+selected_years = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax")
+labels=data.frame(years = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax"), labels = c("Before", "2004", "2005", "2006", "2007", "2013", "2023", "Intact"))
 ```
 
 Definition of altitude bands as in 2_combine_all_data.qmd script:
+
 ```{r}
 elevations <- c(830, 1300, 1700, 2180)
 ```
@@ -109,14 +113,14 @@ betadispersion <- function(data, factor, permutation) {
 }
 
 compute_p_values <- function(dist_method = "bray", min_altitude = elevations[1], max_altitude = elevations[4] + 1) {
-  years <- c("2004", "2005", "2006", "2007", "2013", "2023", "climax", "goedicke")
+  years <- c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax")
   results <- data.frame(years = character(), p_value = numeric())
   for(i in 1:(length(years) - 1)) {
     for(j in (i+1):length(years)) {
       subset <- transformed_data[transformed_data$year %in% c(years[i],years[j]) & transformed_data$elevation >= min_altitude & transformed_data$elevation < max_altitude,]
       dist_matrix_subset <- vegdist(subset[,seq(5,length(colnames(transformed_data)),1)], method = dist_method)
-      res <- betadispersion(dist_matrix_subset, subset$year, 999)
-#      res <- betadispersion(dist_matrix_subset, subset$year, 10)
+      # res <- betadispersion(dist_matrix_subset, subset$year, 999)
+     res <- betadispersion(dist_matrix_subset, subset$year, 10)
       p_value <- res[[1]][1,5]
       results <- add_row(results, years = paste(years[j], "-", years[i], sep = ""), p_value = p_value)
     }
@@ -134,7 +138,7 @@ create_distance_plot <- function(dist_method, ylabel, title, p_values, min_altit
   dist_matrix <- vegdist(subset[, seq(5,length(colnames(transformed_data)),1)], method = dist_method)
   
   box_plot_dist <- data.frame(year = character(), dist = numeric())
-  years <- c("2004","2005","2006","2007","2013", "2023", "climax", "goedicke")
+  years <- c("goedicke", "2004","2005","2006","2007","2013", "2023", "climax")
   for(year in years) {
     dist_m <- vegdist(subset[subset$year == year, seq(5,length(colnames(transformed_data)),1)], method = dist_method)
     box_plot_dist <- add_row(box_plot_dist, year = year, dist = dist_m[lower.tri(dist_m)])
@@ -246,7 +250,7 @@ aggregated <- raw_data |>
     elevation = mean(elevation_m)
   )
 
-aggregated$year <- as.factor(aggregated$year)
+aggregated$year <- factor(aggregated$year, levels = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax"))
 aggregated <- aggregated |> 
   group_by(year, global_id) |>
   summarise(
@@ -260,15 +264,14 @@ aggregated <- aggregated |>
 Alpha diversity:
 
 ```{r}
-temp <- pivot_longer(aggregated, c("a1", "a10", "total"))
-temp <- temp[!(temp$year == "2007" & temp$name == "a1"), ]
-temp <- temp[!(temp$year == "2007" & temp$name == "a10"), ]
-temp <- temp[!(temp$year == "goedicke" & temp$name == "a1"), ]
-temp <- temp[!(temp$year == "goedicke" & temp$name == "a10"), ]
+min_elevation <- elevations[1]
+max_elevation <- elevations[4] + 1
+area <- "total"
 
 compute_p_value <- function(min_elevation, max_elevation, area) {
-  subset <- temp[temp$elevation >= min_elevation & temp$elevation < max_elevation & temp$name == area,  ]
-  model <- glmer(value ~ elevation + year + (1|global_id), data=subset, family = poisson)
+  subset <- aggregated[aggregated$elevation >= min_elevation & aggregated$elevation < max_elevation,]
+  
+  model <- glmer(as.formula(paste(area, "~ elevation + year + (1|global_id)", sep = "")), data=subset, family = poisson)
   AIC(model)
   # plot(model)
   s <- summary(glht(model, linfct = mcp (year = "Tukey" )))
@@ -289,43 +292,50 @@ long_p_val <- function(p_value) {
   return(res)
 }
 
-plot_quant <- function(vector) {
-  return(quantile(vector, probs = 0.75))
+improve_letters <- function(letters) {
+  unique_letters_in_order_of_encounter <- unique(unlist(strsplit(letters, "")))
+  alphabet <- c("a", "b", "c", "d", "e", "f", "g")
+  result <- lapply(strsplit(letters, ""), function(list){
+      indices_of_encounter <- unlist(lapply(list, function(car){
+        which(unique_letters_in_order_of_encounter == car)
+      }))
+      indices_of_encounter <- indices_of_encounter[order(indices_of_encounter)]
+      result <- paste(alphabet[indices_of_encounter], collapse = "")
+      return(result)
+    }) 
+  return(unlist(result))
 }
 
-create_letters <- function(min_elevation, max_elevation) {
-  let_a1 <- multcompLetters(compute_p_value(min_elevation, max_elevation, "a1"))
-  let_a10 <- multcompLetters(compute_p_value(min_elevation, max_elevation, "a10"))
-  let_total <- multcompLetters(compute_p_value(min_elevation, max_elevation, "total"))
-  
-  subset <- temp[temp$elevation >= min_elevation & temp$elevation < max_elevation,  ]
-  # aggregate(value ~ name + year, subset, plot_quant)
+create_letters <- function(min_elevation, max_elevation, area) {
+  letters <- multcompLetters(compute_p_value(min_elevation, max_elevation, area))
+
+  subset <- aggregated[aggregated$elevation >= min_elevation & aggregated$elevation < max_elevation,  ]
 
   small_letters <- subset |>
-    group_by(year, name) |>
+    group_by(year) |>
     summarise(
-      mean = mean(value),
-      quant = quantile(value, probs = 0.75))
-  small_letters$letters <- ""
-  small_letters[small_letters$name == "a1",]$letters <- let_a1$Letters[order(names(let_a1$Letters))]
-  small_letters[small_letters$name == "a10",]$letters <- let_a10$Letters[order(names(let_a10$Letters))]
-  small_letters[small_letters$name == "total",]$letters <- let_total$Letters[order(names(let_total$Letters))]
+      mean = mean(!!sym(area), na.rm = T),
+      quant = quantile(!!sym(area), probs = 0.75, na.rm = T))
+  small_letters$letters <- NA
+  tmp <- letters$Letters[order(names(letters$Letters))]
+  tmp[order(levels(subset$year)[levels(subset$year) %in% names(letters$Letters)])] <- tmp
+  tmp <- improve_letters(tmp)
+  small_letters$letters[small_letters$year %in% names(letters$Letters)] <- tmp
   return(small_letters)
 }
 
-create_alpha_plot <- function(min_elevation, max_elevation, title) {
-  subset <- temp[temp$elevation >= min_elevation & temp$elevation < max_elevation,  ]
-  small_letters <- create_letters(min_elevation, max_elevation)
-  plot <- ggplot(data = subset, aes(x = year, y = value, fill = name)) + 
+create_alpha_plot <- function(min_elevation, max_elevation, area, title) {
+  subset <- aggregated[aggregated$elevation >= min_elevation & aggregated$elevation < max_elevation,  ]
+  small_letters <- create_letters(min_elevation, max_elevation, area)
+  plot <- ggplot(data = subset, aes(x = year, y = !!sym(area))) + 
     geom_boxplot(position = position_dodge(0.8, preserve = "single")) +
     theme_classic() +
-    scale_fill_discrete("Area", labels = c("1m^2", "10m^2", "200m^2")) +
     ylab("# species") +
     xlab("Year") +
-    theme(legend.position="top") +
+    scale_x_discrete(labels=labels$labels[labels$years %in% selected_years]) +
     ggtitle(title) +
     theme(plot.title = element_text(hjust = 0.5)) +
-    geom_text(data = small_letters, aes( y = quant, label = letters),
+    geom_text(data = small_letters, aes( y = min(), label = letters),
           size = 3, 
           vjust = -0.5,
           hjust = -0.5,
@@ -355,14 +365,21 @@ compute_p_values <- function(min_elevation, max_elevation, height = character())
 
 p_values_alpha_all_elevatios <- compute_p_values(elevations[1], elevations[4] + 1, "all_elevations")
 round(p_values_alpha_all_elevatios[,-1], digits = 3)
-alpha_diversity_plot <- create_alpha_plot(elevations[1], elevations[4] + 1, "Alpha Diversity")
+alpha_diversity_plot_a1 <- create_alpha_plot(elevations[1], elevations[4] + 1, "a1", "Alpha Diversity 1m^2")
+alpha_diversity_plot_a10 <- create_alpha_plot(elevations[1], elevations[4] + 1, "a10", "Alpha Diversity 10m^2")
+alpha_diversity_plot_200 <- create_alpha_plot(elevations[1], elevations[4] + 1, "total", "Alpha Diversity 200m^2")
+
+alpha_plot <- ggarrange(alpha_diversity_plot_a1, 
+                       alpha_diversity_plot_a10, 
+                       alpha_diversity_plot_200, ncol = 1, nrow = 3)
+ggsave(filename = "../Daten/Results/Successional Dynamics/alpha_diversity_at_different_grain_sizes.png", plot = alpha_plot)
 
 p_values_alpha_low <- compute_p_values(elevations[1], elevations[2], "low")
-alpha_diversity_low_plot <- create_alpha_plot(elevations[1], elevations[2], "Low Altitude Alpha Diversity")
+alpha_diversity_low_plot <- create_alpha_plot(elevations[1], elevations[2], "total", "Low Altitude Alpha Diversity")
 p_values_alpha_mid <- compute_p_values(elevations[2], elevations[3] + 1, "mid")
-alpha_diversity_mid_plot <- create_alpha_plot(elevations[2], elevations[3], "Mid Altitude Alpha Diversity")
+alpha_diversity_mid_plot <- create_alpha_plot(elevations[2], elevations[3], "total", "Mid Altitude Alpha Diversity")
 p_values_alpha_high <- compute_p_values(elevations[3], elevations[4] + 1, "high")
-alpha_diversity_high_plot <- create_alpha_plot(elevations[3], elevations[4] + 1, "High Altitude Alpha Diversity")
+alpha_diversity_high_plot <- create_alpha_plot(elevations[3], elevations[4] + 1, "total", "High Altitude Alpha Diversity")
 
 alpha_plot <- ggarrange(alpha_diversity_high_plot, 
                        alpha_diversity_mid_plot, 
@@ -371,6 +388,7 @@ ggsave(filename = "../Daten/Results/Successional Dynamics/alpha_diversity_altitu
 ```
 
 Within plot Beta diversity:
+
 ```{r}
 aggregated <- aggregated[aggregated$year != 2007 & aggregated$year != "goedicke",]
 
@@ -590,7 +608,7 @@ Assemble overall plot
 
 ```{r}
 assembled_plots <- ggarrange(
-  alpha_diversity_plot,
+  alpha_diversity_plot_200,
   within_betadiversity_by_year_plot, 
   bray_curtis_plot,
   gamma_diversity_plot, 
