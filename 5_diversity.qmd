@@ -128,12 +128,13 @@ compute_p_values <- function(dist_method = "bray", min_altitude = elevations[1],
   return(results)
 }
 
-dist_method <- "bray"
-min_altitude <- elevations[1]
-max_altitude <- elevations[4] + 1
-ylabel <- "between plot beta"
-title <- "Between plot Beta Diversity"
-p_values <- bray_p_values
+# dist_method <- "bray"
+# min_altitude <- elevations[1]
+# max_altitude <- elevations[4] + 1
+# ylabel <- "between plot beta"
+# title <- "Between plot Beta Diversity"
+# p_values <- bray_p_values
+
 create_distance_plot <- function(dist_method, ylabel, title, p_values, min_altitude = elevations[1], max_altitude = elevations[4] + 1) {
   subset <- transformed_data[transformed_data$elevation >= min_altitude & transformed_data$elevation < max_altitude,]
   dist_matrix <- vegdist(subset[, seq(5,length(colnames(transformed_data)),1)], method = dist_method)
@@ -437,7 +438,7 @@ for(year in unique(aggregated$year)) {
   }
 }
 within_betadiversity$year <- as.factor(within_betadiversity$year)
-within_betadiversity$year <- factor(within_betadiversity$year, levels = c("2004", "2005", "2006", "2007", "2013", "2023", "climax"))
+within_betadiversity$year <- factor(within_betadiversity$year, levels = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax"))
 
 max_elevation <- elevations[2]
 compute_p_values <- function(min_elevation, max_elevation) {
@@ -453,8 +454,6 @@ compute_p_values <- function(min_elevation, max_elevation) {
 
 create_within_plot_plot <- function(min_elevation, max_elevation, title) {
   letters <- multcompLetters(compute_p_values(min_elevation, max_elevation))
-  order <- order(names(letters$Letters))
-
   subset <- within_betadiversity[within_betadiversity$elevation >= min_elevation & within_betadiversity$elevation < max_elevation,]
 
   small_letters <- subset |> 
@@ -462,22 +461,23 @@ create_within_plot_plot <- function(min_elevation, max_elevation, title) {
     summarise(
       mean = mean(beta), 
       quant = quantile(beta, probs = 0.75)) 
-  small_letters$letters <- letters$Letters[order]
+  small_letters$letters <- NA
+  small_letters$letters[order(as.character(small_letters$year))] <- letters$Letters[order(names(letters$Letters))]
+  small_letters$letters <- improve_letters(small_letters$letters)
 
   p <- ggplot(data = subset, aes(x = year, y = beta, group = year)) +
     geom_boxplot() + 
     theme_classic() + 
-    scale_x_discrete("Year", breaks = levels(within_betadiversity$year), drop = FALSE) +
+    scale_x_discrete(labels=labels$labels[labels$years %in% selected_years], drop = FALSE) +
     labs(colour = "Year") +
     xlab("Year") +
-    ylab("beta diversity") + 
+    ylab("beta diversity (z)") + 
     ggtitle(title) + 
     theme(plot.title = element_text(hjust = 0.5)) +
-    geom_text(data = small_letters, aes(x = year, y = quant, label = letters),
+    geom_text(data = small_letters, aes(x = year, y = min(subset$beta), label = letters),
           size = 3, 
-          vjust = -0.5,
-          hjust = -0.5,
-          angle = 90)
+          vjust = 1.2,
+          hjust = 0)
 
   return(p)
 }
