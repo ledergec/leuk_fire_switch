@@ -128,11 +128,12 @@ compute_p_values <- function(dist_method = "bray", min_altitude = elevations[1],
   return(results)
 }
 
-# dist_method <- "bray"
-# min_altitude <- elevations[1]
-# max_altitude <- elevations[4] + 1
-# ylabel <- "between plot beta"
-# title <- "Between plot Beta Diversity"
+dist_method <- "bray"
+min_altitude <- elevations[1]
+max_altitude <- elevations[4] + 1
+ylabel <- "between plot beta"
+title <- "Between plot Beta Diversity"
+p_values <- bray_p_values
 create_distance_plot <- function(dist_method, ylabel, title, p_values, min_altitude = elevations[1], max_altitude = elevations[4] + 1) {
   subset <- transformed_data[transformed_data$elevation >= min_altitude & transformed_data$elevation < max_altitude,]
   dist_matrix <- vegdist(subset[, seq(5,length(colnames(transformed_data)),1)], method = dist_method)
@@ -153,19 +154,21 @@ create_distance_plot <- function(dist_method, ylabel, title, p_values, min_altit
   names(pvals) <- p_values$years
   
   letters <- multcompLetters(pvals)
-  order <- order(names(letters$Letters))
+
+  box_plot_dist$year <- factor(box_plot_dist$year , levels = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax"))
 
   small_letters <- box_plot_dist |> 
     group_by(year) |>
     summarise(
       mean = mean(dist), 
       quant = quantile(dist, probs = 0.75)) 
-  small_letters$letters <- letters$Letters[order]
-
+  small_letters$letters <- NA
+  small_letters$letters[order(as.character(small_letters$year))] <- letters$Letters
   
   plot <- ggplot(data = box_plot_dist, aes(x = year, y = dist, group = year)) +
     geom_boxplot() +
     geom_point(data = mean_dist_between_plot[[2]], aes(x = Group, y = `Average Beta`), color = "red") +
+    scale_x_discrete(labels=labels$labels[labels$years %in% selected_years], drop = FALSE) +
     xlab("Year") + 
     ylab(ylabel) +
     theme_classic() +
@@ -176,14 +179,32 @@ create_distance_plot <- function(dist_method, ylabel, title, p_values, min_altit
               vjust = -0.5,
               hjust = -0.5,
               angle = 90)
-
+  
+  tmp <- box_plot_dist |> 
+    group_by(year) |> 
+    summarise(mean = mean(dist),
+              se = sd(dist) / sqrt(length(dist)))
+  
+  plot <- ggplot(data = tmp, aes(x = year, y = mean, group = year)) +
+    geom_point() +
+    geom_errorbar(aes(ymax = mean + se, ymin = mean - se), width=0.1, position=position_dodge(0)) + 
+    scale_x_discrete(labels=labels$labels[labels$years %in% selected_years], drop = FALSE) +
+    xlab("Year") + 
+    ylab(ylabel) +
+    theme_classic() +
+    ggtitle(title) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    geom_text(data = small_letters, aes(x = year, y = min(tmp$mean - tmp$se) - 0.1*(max(tmp$mean - tmp$se) - min(tmp$mean - tmp$se)), label = letters),
+              size = 3, 
+              vjust = 0,
+              hjust = 0)
   return(plot)
 }
 
 bray_p_values <- compute_p_values("bray")
 bray_p_values < 0.05
 
-bray_curtis_plot <- create_distance_plot("bray", "mean Bray-Curtis", "Between Plot Beta-Diversity", p_values = bray_p_values)
+bray_curtis_plot <- create_distance_plot("bray", "mean Bray-Curtis distance", "Between Plot Beta-Diversity", p_values = bray_p_values)
 names(bray_p_values)[2] <- "bray_all_elevations_between_plot_beta"
 
 bray_p_values_low_el <- compute_p_values("bray", min_altitude = elevations[1], 
