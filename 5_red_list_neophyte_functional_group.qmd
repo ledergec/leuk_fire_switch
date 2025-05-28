@@ -96,6 +96,8 @@ create_functional_group_plot <- function(data, title) {
       geom_point() +
       scale_color_discrete(name = "Functional Group", labels = c("Dry Meadow", "Fertilized Meadow", "Forest", "Low Elevation Pioneer", "Mountain Plant", "Ruderal", "Water", "Wetland")) +
       scale_x_discrete(labels=labels$labels[labels$years %in% selected_years]) +
+      ylab("Fraction of plants in Functional Group in %") +
+      xlab("Year") +
       ggtitle(paste("Mean fraction of plants in each functional group at ", title))
   ggsave(paste("../Daten/Results/FunctionalGroups/mean_fraction_of_plants_in_each_functional_group_at", title, ".png"), plot = plot)
   
