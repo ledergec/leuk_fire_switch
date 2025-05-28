@@ -67,17 +67,19 @@ create_plot <- function(indicator_data, response_name, ylab, title) {
   small_letters$letters <- ""
   small_letters$letters[order] <- letters$Letters
 
+  ylabel_value <- min(indicator_data[,c(response_name)]) - 0.2*(max(indicator_data[,c(response_name)])-min(indicator_data[,c(response_name)]))
   p <- ggplot(data = indicator_data, aes_string(x = "year", y = response_name)) +
     geom_boxplot() +
     theme_classic() +
     ylab(ylab) +
     xlab("Year") +
     ggtitle(title) +
+    scale_x_discrete(labels=labels$labels[labels$years %in% selected_years]) +
     theme(plot.title = element_text(hjust = 0.5)) +
-    geom_text(data = small_letters, aes(x = year, y = quant, label = letters),
+    geom_text(data = small_letters, aes(x = year, y = ylabel_value, label = letters),
               size = 3, 
               vjust = -0.5,
-              nudge_x = 0.1)
+              nudge_x = 0)
   
   return(p)
 }
