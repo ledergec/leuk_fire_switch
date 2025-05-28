@@ -73,7 +73,6 @@ improve_letters <- function(letters) {
 
 compute_small_letters <- function(indicator_data, response_name) {
   letters <- multcompLetters(compute_p_values_for_letters(indicator_data, response_name))
-  order <- order(levels(as.factor(mean_iv$year)))
 
   small_letters <- indicator_data |> 
     group_by(year) |>
@@ -81,7 +80,7 @@ compute_small_letters <- function(indicator_data, response_name) {
       mean = mean(!!sym(response_name)), 
       quant = quantile(!!sym(response_name), probs = 0.75)) 
   small_letters$letters <- ""
-  small_letters$letters[order] <- letters$Letters
+  small_letters$letters[order(as.character(small_letters$year))] <- letters$Letters[order(names(letters$Letters))]
   small_letters$letters <- improve_letters(small_letters$letters)
   return(small_letters)  
 }

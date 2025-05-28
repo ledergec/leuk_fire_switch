@@ -164,7 +164,7 @@ create_distance_plot <- function(dist_method, ylabel, title, p_values, min_altit
       mean = mean(dist), 
       quant = quantile(dist, probs = 0.75)) 
   small_letters$letters <- NA
-  small_letters$letters[order(as.character(small_letters$year))] <- letters$Letters
+  small_letters$letters[order(as.character(small_letters$year))] <- letters$Letters[order(names(letters$Letters))]
   
   plot <- ggplot(data = box_plot_dist, aes(x = year, y = dist, group = year)) +
     geom_boxplot() +
