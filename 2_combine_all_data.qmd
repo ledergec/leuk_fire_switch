@@ -540,11 +540,20 @@ Match the data from the nesting file to the correct lines in the cleaned up data
 ```{r}
 data <- match_nesting_to_data(data, nesting_2004_2007[nesting_2004_2007$year == 2007, -1], short_names_to_long_names, 2007)
 
+data$a1[data$year == "2007"] <- NaN
+data$a10[data$year == "2007"] <- NaN
+data$b1[data$year == "2007"] <- NaN
+data$b10[data$year == "2007"] <- NaN
+data$c1[data$year == "2007"] <- NaN
+data$c10[data$year == "2007"] <- NaN
+data$d1[data$year == "2007"] <- NaN
+data$d10[data$year == "2007"] <- NaN
+
 # Look at the data which has been matched
 data[data$year == 2007,]
 
 # We check that for all rows the corresponding nesting has been found
-assertthat::are_equal(nrow(data[data$year == 2007 & is.na(data$a1),]),0)
+assertthat::are_equal(nrow(data[data$year == 2007 & is.na(data$percentage200),]),0)
 ```
 
 Add bodentiefe and asche information to the data
@@ -806,7 +815,8 @@ goedickemeier_full_data$mean_asches_depth <- NA
 goedickemeier_full_data$median_asches_depth <- NA
 goedickemeier_full_data$mean_soil_depth <- NA
 goedickemeier_full_data$median_soil_depth <- NA
-
+names(data)
+names(goedickemeier_full_data)
 data <- rbind(data, goedickemeier_full_data)
 ```
 
