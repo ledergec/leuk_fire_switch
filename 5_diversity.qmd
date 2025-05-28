@@ -529,6 +529,11 @@ all_spec <- prepared_data[prepared_data$year == "climax" & prepared_data$spec,]
 all_spec <- all_spec[!(all_spec$genus %in% all_taxa$genus),]
 gamma_climax <- length(unique(all_taxa$taxon)) + length(unique(all_spec$taxon))
 
+all_taxa <- prepared_data[prepared_data$year == "goedicke" & !prepared_data$spec,]
+all_spec <- prepared_data[prepared_data$year == "goedicke" & prepared_data$spec,]
+all_spec <- all_spec[!(all_spec$genus %in% all_taxa$genus),]
+gamma_goedicke <- length(unique(all_taxa$taxon)) + length(unique(all_spec$taxon))
+
 # Create altitude bins
 elevations <- seq(
   min(transformed_data$elevation), 
@@ -543,7 +548,7 @@ for(i in 1:(length(elevations) - 1)) {
 }
 
 # We reduce the complexity by throwing away plots which are present for only part of the years
-non_climax_data <- prepared_data[prepared_data$year != "climax",]
+non_climax_data <- prepared_data[prepared_data$year != "climax" & prepared_data$year != "goedicke",]
 plots_present_in_all_years <- unique(non_climax_data$global_id)
 length(plots_present_in_all_years)
 for(year in unique(non_climax_data$year)){
@@ -564,6 +569,7 @@ plots_in_altitude_bands |> group_by(bin) |> summarise(n = n())
 
 gamma_diversity <- data.frame(year = character(), gamma = numeric())
 
+r <- 1
 for(r in 1:1000) {
   # Create random sample of plots
   selected_global_ids <- c()
@@ -583,12 +589,13 @@ for(r in 1:1000) {
   }
 }
 
-gamma_diversity$year <- factor(gamma_diversity$year, levels = c("2004", "2005", "2006", "2007", "2013", "2023", "climax"))
+gamma_diversity$year <- factor(gamma_diversity$year, levels = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax"))
 #gamma_diversity <- add_row(gamma_diversity, year = "climax", gamma = gamma_climax)
 
 gamma_diversity_plot <- ggplot(data = gamma_diversity, aes(x = year, y = gamma)) +
   geom_boxplot() + 
-  scale_x_discrete("Year", breaks = levels(gamma_diversity$year), drop = FALSE) +
+  scale_x_discrete(labels=labels$labels[labels$years %in% selected_years], drop = FALSE) +
+  geom_point(data = data.frame(year = "goedicke", gamma = gamma_goedicke),  color = 'red') +
   geom_point(data = data.frame(year = "climax", gamma = gamma_climax), color = 'red') +
   theme_classic() +
   theme(plot.title = element_text(hjust = 0.5)) +
