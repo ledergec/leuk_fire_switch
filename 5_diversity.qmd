@@ -356,12 +356,11 @@ create_alpha_plot <- function(min_elevation, max_elevation, area, title) {
     scale_x_discrete(labels=labels$labels[labels$years %in% selected_years]) +
     ggtitle(title) +
     theme(plot.title = element_text(hjust = 0.5)) +
-    geom_text(data = small_letters, aes( y = min(), label = letters),
+    geom_text(data = small_letters, aes(y = min(subset[,area]), label = letters),
           size = 3, 
-          vjust = -0.5,
-          hjust = -0.5,
-          angle = 90,
-          position=position_dodge(width=0.8))
+          vjust = 1.2,
+          hjust = 0,
+          nudge_x = 0)
 
   return(plot)
 }
