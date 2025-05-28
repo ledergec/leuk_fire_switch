@@ -23,8 +23,12 @@ library(multcompView)
 ```
 
 ```{r}
+selected_years = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax")
+labels=data.frame(years = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax"), labels = c("Before", "2004", "2005", "2006", "2007", "2013", "2023", "Intact"))
+
 mean_iv <- read_csv("../Daten/Intermediate/mean_indicator_values.csv")
 mean_iv <- mean_iv[!is.na(mean_iv$log_dry_seed_mass_mg),]
+mean_iv$year <- factor(mean_iv$year, levels = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax"))
 ```
 
 
@@ -34,7 +38,13 @@ mean_iv <- mean_iv[!is.na(mean_iv$log_dry_seed_mass_mg),]
 ```{r}
 names(mean_iv)
 any(is.na(mean_iv$slope))
-mean_iv$year <- as.factor(mean_iv$year)
+
+indicator_data <- mean_iv
+indicator_data[is.na(indicator_data$year),]
+response_name <- "EIVEresT"
+title <- "T"
+ylab <- "Temperature"
+indicator_data$year[(is.na(indicator_data$year == "goedicke"))]
 
 compute_p_values_for_letters <- function(indicator_data, response_name) {
   tmp_formula_string <- paste(response_name, " ~ elevation + year + (1|global_id)", sep = "")
@@ -47,14 +57,15 @@ compute_p_values_for_letters <- function(indicator_data, response_name) {
 
 create_plot <- function(indicator_data, response_name, ylab, title) {
   letters <- multcompLetters(compute_p_values_for_letters(indicator_data, response_name))
-  order <- order(names(letters$Letters))
+  order <- order(levels(as.factor(mean_iv$year)))
 
   small_letters <- indicator_data |> 
     group_by(year) |>
     summarise(
       mean = mean(!!sym(response_name)), 
       quant = quantile(!!sym(response_name), probs = 0.75)) 
-  small_letters$letters <- letters$Letters[order]
+  small_letters$letters <- ""
+  small_letters$letters[order] <- letters$Letters
 
   p <- ggplot(data = indicator_data, aes_string(x = "year", y = response_name)) +
     geom_boxplot() +
