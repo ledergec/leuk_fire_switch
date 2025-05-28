@@ -71,7 +71,7 @@ improve_letters <- function(letters) {
   return(unlist(result))
 }
 
-create_plot <- function(indicator_data, response_name, ylab, title) {
+compute_small_letters <- function(indicator_data, response_name) {
   letters <- multcompLetters(compute_p_values_for_letters(indicator_data, response_name))
   order <- order(levels(as.factor(mean_iv$year)))
 
@@ -83,7 +83,12 @@ create_plot <- function(indicator_data, response_name, ylab, title) {
   small_letters$letters <- ""
   small_letters$letters[order] <- letters$Letters
   small_letters$letters <- improve_letters(small_letters$letters)
+  return(small_letters)  
+}
 
+create_box_plot <- function(indicator_data, response_name, ylab, title) {
+  small_letters <- compute_small_letters(indicator_data, response_name)
+  
   ylabel_value <- min(indicator_data[,c(response_name)]) - 0.2*(max(indicator_data[,c(response_name)])-min(indicator_data[,c(response_name)]))
   p <- ggplot(data = indicator_data, aes_string(x = "year", y = response_name)) +
     geom_boxplot() +
@@ -101,6 +106,32 @@ create_plot <- function(indicator_data, response_name, ylab, title) {
   return(p)
 }
 
+create_se_plot <- function(indicator_data, response_name, ylab, title) {
+  small_letters <- compute_small_letters(indicator_data, response_name)
+  
+  p <- indicator_data |> 
+    group_by(year) |>
+    summarise(
+      mean = mean(!!sym(response_name)),
+      se = sd(!!sym(response_name))/sqrt(length(!!sym(response_name)))
+    ) |>
+    ggplot(aes(y=mean, x=year)) + 
+      geom_errorbar(aes(ymin=mean - se, ymax=mean + se), width=0.1, position=position_dodge(0)) +
+      geom_point() +
+      theme_classic() +
+      ylab(ylab) +
+      xlab("Year") +
+      scale_x_discrete(labels=labels$labels[labels$years %in% selected_years]) +
+      geom_text(aes(x = year, y = min(mean-se) - 0.3*(max(mean+se) - min(mean-se)), label = small_letters$letters),
+                size = 3,
+                vjust = -0.5,
+                nudge_x = 0) +
+      theme(plot.title = element_text(hjust = 0.5)) +
+      ggtitle(title)
+  
+  return(p)
+}
+
 compute_p_values <- function(indicator_data, response_name) {
   tmp_formula_string <- paste(response_name, " ~ elevation + year + (1|global_id)", sep = "")
   model <- lmer(as.formula(tmp_formula_string), data=indicator_data)
@@ -112,24 +143,57 @@ compute_p_values <- function(indicator_data, response_name) {
   return(result)
 }
 
-create_full_plot <- function(indicator_data, filename) {
-  p_moisture <- create_plot(indicator_data, "EIVEresM", "Moisture", "M")
-  p_nutrients <- create_plot(indicator_data, "EIVEresN", "Nutrients", "N")
-  p_reaction <- create_plot(indicator_data, "EIVEresR", "Reaction", "R")
-  p_light <- create_plot(indicator_data, "EIVEresL", "Light", "L")
-  p_temperature <- create_plot(indicator_data, "EIVEresT", "Temperature", "T")
-  p_dist_sev <- create_plot(indicator_data, "DistSeverity", "Disturbance Severity", "Disturbance Severity")
-  p_dist_freq <- create_plot(indicator_data, "DistFrequency", "Disturbance Frequency", "Disturbance Frequency")
-  p_mowing_freq <- create_plot(indicator_data, "MowingFrequency", "Mowing Frequency", "Mowing Frequency")
-  p_grazing_pressure <- create_plot(indicator_data, "GrazingPressure", "Grazing Pressure", "Grazing Pressure")
-  p_soil_disturbance <- create_plot(indicator_data, "SoilDisturbance", "Soil Disturbance", "Soil Distrubance")
-  p_competition <- create_plot(indicator_data, "Competition", "Competition", "Competition")
-  p_stress <- create_plot(indicator_data, "Stress", "Stress", "Stress")
-  p_ruderalness <- create_plot(indicator_data, "Ruderalness", "Ruderalness", "Ruderalness")
-  p_hemeroby <- create_plot(indicator_data, "EM", "Hemeroby", "Hemeroby")
-  p_seed <- create_plot(indicator_data, "log_dry_seed_mass_mg", "log10(Dry Seed Mass (mg))", "Seed Mass")
-  p_leaf <- create_plot(indicator_data, "log_sla_cm2_per_mg", "log10(SLA (cm^2/mg))", "Leaf Area")
-  p_height <- create_plot(indicator_data, "log_canopy_height_m", "log10(Canopy height (m))", "Canopy Height")
+create_full_box_plot <- function(indicator_data, filename) {
+  p_moisture <- create_box_plot(indicator_data, "EIVEresM", "Moisture", "M")
+  p_nutrients <- create_box_plot(indicator_data, "EIVEresN", "Nutrients", "N")
+  p_reaction <- create_box_plot(indicator_data, "EIVEresR", "Reaction", "R")
+  p_light <- create_box_plot(indicator_data, "EIVEresL", "Light", "L")
+  p_temperature <- create_box_plot(indicator_data, "EIVEresT", "Temperature", "T")
+  p_dist_sev <- create_box_plot(indicator_data, "DistSeverity", "Disturbance Severity", "Disturbance Severity")
+  p_dist_freq <- create_box_plot(indicator_data, "DistFrequency", "Disturbance Frequency", "Disturbance Frequency")
+  p_mowing_freq <- create_box_plot(indicator_data, "MowingFrequency", "Mowing Frequency", "Mowing Frequency")
+  p_grazing_pressure <- create_box_plot(indicator_data, "GrazingPressure", "Grazing Pressure", "Grazing Pressure")
+  p_soil_disturbance <- create_box_plot(indicator_data, "SoilDisturbance", "Soil Disturbance", "Soil Distrubance")
+  p_competition <- create_box_plot(indicator_data, "Competition", "Competition", "Competition")
+  p_stress <- create_box_plot(indicator_data, "Stress", "Stress", "Stress")
+  p_ruderalness <- create_box_plot(indicator_data, "Ruderalness", "Ruderalness", "Ruderalness")
+  p_hemeroby <- create_box_plot(indicator_data, "EM", "Hemeroby", "Hemeroby")
+  p_seed <- create_box_plot(indicator_data, "log_dry_seed_mass_mg", "log10(Dry Seed Mass (mg))", "Seed Mass")
+  p_leaf <- create_box_plot(indicator_data, "log_sla_cm2_per_mg", "log10(SLA (cm^2/mg))", "Leaf Area")
+  p_height <- create_box_plot(indicator_data, "log_canopy_height_m", "log10(Canopy height (m))", "Canopy Height")
+  
+  p <- ggarrange(
+    p_moisture, p_nutrients, p_reaction, 
+    p_light, p_temperature, p_dist_sev, 
+    p_dist_freq, p_mowing_freq, p_grazing_pressure, 
+    p_soil_disturbance, p_competition, p_stress, 
+    p_ruderalness, p_hemeroby, p_seed, 
+    p_leaf, p_height, 
+    ncol = 3,
+    nrow = 6
+  )
+  p
+  ggsave(filename, p, width = 3000, height = 4200, units = "px")
+}
+
+create_full_se_plot <- function(indicator_data, filename) {
+  p_moisture <- create_se_plot(indicator_data, "EIVEresM", "Moisture", "M")
+  p_nutrients <- create_se_plot(indicator_data, "EIVEresN", "Nutrients", "N")
+  p_reaction <- create_se_plot(indicator_data, "EIVEresR", "Reaction", "R")
+  p_light <- create_se_plot(indicator_data, "EIVEresL", "Light", "L")
+  p_temperature <- create_se_plot(indicator_data, "EIVEresT", "Temperature", "T")
+  p_dist_sev <- create_se_plot(indicator_data, "DistSeverity", "Disturbance Severity", "Disturbance Severity")
+  p_dist_freq <- create_se_plot(indicator_data, "DistFrequency", "Disturbance Frequency", "Disturbance Frequency")
+  p_mowing_freq <- create_se_plot(indicator_data, "MowingFrequency", "Mowing Frequency", "Mowing Frequency")
+  p_grazing_pressure <- create_se_plot(indicator_data, "GrazingPressure", "Grazing Pressure", "Grazing Pressure")
+  p_soil_disturbance <- create_se_plot(indicator_data, "SoilDisturbance", "Soil Disturbance", "Soil Distrubance")
+  p_competition <- create_se_plot(indicator_data, "Competition", "Competition", "Competition")
+  p_stress <- create_se_plot(indicator_data, "Stress", "Stress", "Stress")
+  p_ruderalness <- create_se_plot(indicator_data, "Ruderalness", "Ruderalness", "Ruderalness")
+  p_hemeroby <- create_se_plot(indicator_data, "EM", "Hemeroby", "Hemeroby")
+  p_seed <- create_se_plot(indicator_data, "log_dry_seed_mass_mg", "log10(Dry Seed Mass (mg))", "Seed Mass")
+  p_leaf <- create_se_plot(indicator_data, "log_sla_cm2_per_mg", "log10(SLA (cm^2/mg))", "Leaf Area")
+  p_height <- create_se_plot(indicator_data, "log_canopy_height_m", "log10(Canopy height (m))", "Canopy Height")
   
   p <- ggarrange(
     p_moisture, p_nutrients, p_reaction, 
@@ -187,16 +251,20 @@ compute_all_p_values <- function(indicator_data, filename) {
   write_csv(p_values, filename)
 }
 
-create_full_plot(mean_iv, "../Daten/Results/Successional Dynamics/Basic Analysis/all_taxon_traits_plot.png")
+create_full_box_plot(mean_iv, "../Daten/Results/Successional Dynamics/Basic Analysis/all_taxon_traits_box_plot.png")
+create_full_se_plot(mean_iv, "../Daten/Results/Successional Dynamics/Basic Analysis/all_taxon_traits_se_plot.png")
 compute_all_p_values(mean_iv, "../Daten/Results/Successional Dynamics/Basic Analysis/all_taxon_traits_p_values.csv")
 
-create_full_plot(mean_iv[mean_iv$altitude_band == "low",], "../Daten/Results/Successional Dynamics/Basic Analysis/low_altitude_taxon_traits_plot.png")
+create_full_box_plot(mean_iv[mean_iv$altitude_band == "low",], "../Daten/Results/Successional Dynamics/Basic Analysis/low_altitude_taxon_traits_box_plot.png")
+create_full_se_plot(mean_iv[mean_iv$altitude_band == "low",], "../Daten/Results/Successional Dynamics/Basic Analysis/low_altitude_taxon_traits_se_plot.png")
 compute_all_p_values(mean_iv[mean_iv$altitude_band == "low",], "../Daten/Results/Successional Dynamics/Basic Analysis/low_altitude_taxon_traits_p_values.csv")
 
-create_full_plot(mean_iv[mean_iv$altitude_band == "mid",], "../Daten/Results/Successional Dynamics/Basic Analysis/mid_altitude_taxon_traits_plot.png")
+create_full_box_plot(mean_iv[mean_iv$altitude_band == "mid",], "../Daten/Results/Successional Dynamics/Basic Analysis/mid_altitude_taxon_traits_box_plot.png")
+create_full_se_plot(mean_iv[mean_iv$altitude_band == "mid",], "../Daten/Results/Successional Dynamics/Basic Analysis/mid_altitude_taxon_traits_se_plot.png")
 compute_all_p_values(mean_iv[mean_iv$altitude_band == "mid",], "../Daten/Results/Successional Dynamics/Basic Analysis/mid_altitude_taxon_traits_p_values.csv")
 
-create_full_plot(mean_iv[mean_iv$altitude_band == "high",], "../Daten/Results/Successional Dynamics/Basic Analysis/high_altitude_taxon_traits_plot.png")
+create_full_box_plot(mean_iv[mean_iv$altitude_band == "high",], "../Daten/Results/Successional Dynamics/Basic Analysis/high_altitude_taxon_traits_box_plot.png")
+create_full_se_plot(mean_iv[mean_iv$altitude_band == "high",], "../Daten/Results/Successional Dynamics/Basic Analysis/high_altitude_taxon_traits_se_plot.png")
 compute_all_p_values(mean_iv[mean_iv$altitude_band == "high",], "../Daten/Results/Successional Dynamics/Basic Analysis/high_altitude_taxon_traits_p_values.csv")
 ```
 
