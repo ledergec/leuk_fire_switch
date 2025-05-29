@@ -48,6 +48,20 @@ elevations <- c(830, 1300, 1700, 2180)
 Between plot Betadiversity:
 
 ```{r}
+improve_letters <- function(letters) {
+  unique_letters_in_order_of_encounter <- unique(unlist(strsplit(letters, "")))
+  alphabet <- c("a", "b", "c", "d", "e", "f", "g")
+  result <- lapply(strsplit(letters, ""), function(list){
+      indices_of_encounter <- unlist(lapply(list, function(car){
+        which(unique_letters_in_order_of_encounter == car)
+      }))
+      indices_of_encounter <- indices_of_encounter[order(indices_of_encounter)]
+      result <- paste(alphabet[indices_of_encounter], collapse = "")
+      return(result)
+    }) 
+  return(unlist(result))
+}
+
 betadispersion <- function(data, factor, permutation) {
   x<-as.dist(data)
   x.estend <- as.vector(x)
@@ -119,8 +133,8 @@ compute_p_values <- function(dist_method = "bray", min_altitude = elevations[1],
     for(j in (i+1):length(years)) {
       subset <- transformed_data[transformed_data$year %in% c(years[i],years[j]) & transformed_data$elevation >= min_altitude & transformed_data$elevation < max_altitude,]
       dist_matrix_subset <- vegdist(subset[,seq(5,length(colnames(transformed_data)),1)], method = dist_method)
-      # res <- betadispersion(dist_matrix_subset, subset$year, 999)
-     res <- betadispersion(dist_matrix_subset, subset$year, 10)
+      res <- betadispersion(dist_matrix_subset, subset$year, 999)
+     # res <- betadispersion(dist_matrix_subset, subset$year, 10)
       p_value <- res[[1]][1,5]
       results <- add_row(results, years = paste(years[j], "-", years[i], sep = ""), p_value = p_value)
     }
@@ -165,6 +179,7 @@ create_distance_plot <- function(dist_method, ylabel, title, p_values, min_altit
       quant = quantile(dist, probs = 0.75)) 
   small_letters$letters <- NA
   small_letters$letters[order(as.character(small_letters$year))] <- letters$Letters[order(names(letters$Letters))]
+  small_letters$letters <- improve_letters(small_letters$letters)
   
   plot <- ggplot(data = box_plot_dist, aes(x = year, y = dist, group = year)) +
     geom_boxplot() +
@@ -312,20 +327,6 @@ long_p_val <- function(p_value) {
 #  names(res) <- c("2005-2004", "2006-2004", "2007-2004", "2013-2004", "2023-2004",  "climax-2004", "2006-2005", "2007-2005", "2013-2005", "2023-2005", "climax-2005", "2007-2006", "2013-2006", "2023-2006", "climax-2006", "2013-2007", "2023-2007", "climax-2007", "2023-2013", "climax-2013", "climax-2023")
   names(res) <- c("2005-2004", "2006-2004", "2007-2004", "2013-2004", "2023-2004",  "climax-2004", "goedicke-2004", "2006-2005", "2007-2005", "2013-2005", "2023-2005", "climax-2005", "goedicke-2005", "2007-2006", "2013-2006", "2023-2006", "climax-2006", "goedicke-2006", "2013-2007", "2023-2007", "climax-2007", "goedicke-2007", "2023-2013", "climax-2013", "goedicke-2013", "climax-2023", "goedicke-2023", "goedicke-climax")
   return(res)
-}
-
-improve_letters <- function(letters) {
-  unique_letters_in_order_of_encounter <- unique(unlist(strsplit(letters, "")))
-  alphabet <- c("a", "b", "c", "d", "e", "f", "g")
-  result <- lapply(strsplit(letters, ""), function(list){
-      indices_of_encounter <- unlist(lapply(list, function(car){
-        which(unique_letters_in_order_of_encounter == car)
-      }))
-      indices_of_encounter <- indices_of_encounter[order(indices_of_encounter)]
-      result <- paste(alphabet[indices_of_encounter], collapse = "")
-      return(result)
-    }) 
-  return(unlist(result))
 }
 
 create_letters <- function(min_elevation, max_elevation, area) {
