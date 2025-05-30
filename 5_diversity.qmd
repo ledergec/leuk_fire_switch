@@ -31,6 +31,11 @@ raw_data <- raw_data[raw_data$year != "goedicke" | raw_data$in_vicinity,]
 transformed_data <- read_delim("../Daten/Intermediate/incidence_matrix.csv")
 transformed_data$year[transformed_data$year == 2178] <- "climax"
 transformed_data$year[transformed_data$year == 1995] <- "goedicke"
+
+length(unique(raw_data$global_id[raw_data$year == "goedicke"]))
+length(unique(raw_data$global_id[raw_data$year == "climax"]))
+length(unique(raw_data$global_id[!(raw_data$year %in% c("climax", "goedicke"))]))
+
 # remove plots from goedicke which are not close to the fire or climax data
 transformed_data <- transformed_data[(transformed_data$plotid %% 100000) %in% unique(raw_data$global_id),]
 transformed_data$year <- factor(transformed_data$year, levels = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax"))
@@ -303,7 +308,7 @@ Alpha diversity:
 ```{r}
 min_elevation <- elevations[1]
 max_elevation <- elevations[4] + 1
-area <- "total"
+area <- "a1"
 
 compute_p_value <- function(min_elevation, max_elevation, area) {
   subset <- aggregated[aggregated$elevation >= min_elevation & aggregated$elevation < max_elevation,]
@@ -350,6 +355,7 @@ create_letters <- function(min_elevation, max_elevation, area) {
 create_alpha_plot <- function(min_elevation, max_elevation, area, title) {
   subset <- aggregated[aggregated$elevation >= min_elevation & aggregated$elevation < max_elevation,  ]
   small_letters <- create_letters(min_elevation, max_elevation, area)
+  small_letters$letters[is.na(small_letters$letters)] <- ""
   plot <- ggplot(data = subset, aes(x = year, y = !!sym(area))) + 
     geom_boxplot(position = position_dodge(0.8, preserve = "single")) +
     theme_classic() +
@@ -358,11 +364,12 @@ create_alpha_plot <- function(min_elevation, max_elevation, area, title) {
     scale_x_discrete(labels=labels$labels[labels$years %in% selected_years]) +
     ggtitle(title) +
     theme(plot.title = element_text(hjust = 0.5)) +
-    geom_text(data = small_letters, aes(y = min(subset[,area]), label = letters),
-          size = 3, 
-          vjust = 1.2,
-          hjust = 0,
-          nudge_x = 0)
+    geom_text(data = small_letters, aes(y = min(subset[,area], na.rm = T) - 0.05*(max(subset[,area], na.rm = T) - min(subset[,area], na.rm = T)), label = letters),
+        size = 3, 
+        vjust = 0,
+        hjust = 0,
+        nudge_x = 0)
+
 
   return(plot)
 }
@@ -475,9 +482,9 @@ create_within_plot_plot <- function(min_elevation, max_elevation, title) {
     ylab("beta diversity (z)") + 
     ggtitle(title) + 
     theme(plot.title = element_text(hjust = 0.5)) +
-    geom_text(data = small_letters, aes(x = year, y = min(subset$beta), label = letters),
+    geom_text(data = small_letters, aes(x = year, y = min(subset$beta) - 0.2*(max(subset$beta) - min(subset$beta)), label = letters),
           size = 3, 
-          vjust = 1.2,
+          vjust = 0,
           hjust = 0)
 
   return(p)
