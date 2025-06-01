@@ -91,7 +91,7 @@ analyze_seed_backpressure <- function(data, title) {
   
   venn.diagram(
     x = list(fire_species, goedicke_species, climax_species),
-    category.names = c("fire", "goedicke", "climax"),
+    category.names = c("2004-2023", "Before", "Intact"),
     filename = paste("../Daten/Results/Goedicke/", title, ".svg"),
     output = T
   )
