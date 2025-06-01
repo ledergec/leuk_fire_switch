@@ -364,7 +364,7 @@ create_alpha_plot <- function(min_elevation, max_elevation, area, title) {
     scale_x_discrete(labels=labels$labels[labels$years %in% selected_years]) +
     ggtitle(title) +
     theme(plot.title = element_text(hjust = 0.5)) +
-    geom_text(data = small_letters, aes(y = min(subset[,area], na.rm = T) - 0.05*(max(subset[,area], na.rm = T) - min(subset[,area], na.rm = T)), label = letters),
+    geom_text(data = small_letters, aes(y = min(subset[,area], na.rm = T) - 0.08*(max(subset[,area], na.rm = T) - min(subset[,area], na.rm = T)), label = letters),
         size = 3, 
         vjust = 0,
         hjust = 0,
@@ -482,7 +482,7 @@ create_within_plot_plot <- function(min_elevation, max_elevation, title) {
     ylab("beta diversity (z)") + 
     ggtitle(title) + 
     theme(plot.title = element_text(hjust = 0.5)) +
-    geom_text(data = small_letters, aes(x = year, y = min(subset$beta) - 0.2*(max(subset$beta) - min(subset$beta)), label = letters),
+    geom_text(data = small_letters, aes(x = year, y = min(subset$beta) - 0.08*(max(subset$beta) - min(subset$beta)), label = letters),
           size = 3, 
           vjust = 0,
           hjust = 0)
