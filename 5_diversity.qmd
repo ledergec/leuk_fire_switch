@@ -58,20 +58,6 @@ elevations <- c(830, 1300, 1700, 2180)
 Between plot Betadiversity:
 
 ```{r}
-improve_letters <- function(letters) {
-  unique_letters_in_order_of_encounter <- unique(unlist(strsplit(letters, "")))
-  alphabet <- c("a", "b", "c", "d", "e", "f", "g")
-  result <- lapply(strsplit(letters, ""), function(list){
-      indices_of_encounter <- unlist(lapply(list, function(car){
-        which(unique_letters_in_order_of_encounter == car)
-      }))
-      indices_of_encounter <- indices_of_encounter[order(indices_of_encounter)]
-      result <- paste(alphabet[indices_of_encounter], collapse = "")
-      return(result)
-    }) 
-  return(unlist(result))
-}
-
 betadispersion <- function(data, factor, permutation) {
   x<-as.dist(data)
   x.estend <- as.vector(x)

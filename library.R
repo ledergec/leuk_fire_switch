@@ -29,3 +29,21 @@ compute_alpha_diversity <- function(data) {
     )
   return(aggregated)
 }
+
+# This function allows improving the assignment of significance letters. After 
+# improvement the letters signifying different significance levels will appear 
+# in alphabetic order and are also sorted alphabetically within each group.
+improve_letters <- function(letters) {
+  unique_letters_in_order_of_encounter <- unique(unlist(strsplit(letters, "")))
+  alphabet <- c("a", "b", "c", "d", "e", "f", "g")
+  result <- lapply(strsplit(letters, ""), function(list){
+    indices_of_encounter <- unlist(lapply(list, function(car){
+      which(unique_letters_in_order_of_encounter == car)
+    }))
+    indices_of_encounter <- indices_of_encounter[order(indices_of_encounter)]
+    result <- paste(alphabet[indices_of_encounter], collapse = "")
+    return(result)
+  }) 
+  return(unlist(result))
+}
+

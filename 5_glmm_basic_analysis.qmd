@@ -22,6 +22,11 @@ library(dplyr)
 library(multcompView)
 ```
 
+Load common code
+```{r}
+source("library.R")
+```
+
 ```{r}
 selected_years = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax")
 labels=data.frame(years = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax"), labels = c("Before", "2004", "2005", "2006", "2007", "2013", "2023", "Intact"))
@@ -53,22 +58,6 @@ compute_p_values_for_letters <- function(indicator_data, response_name) {
   res <- s$test$pvalues
   names(res) <- gsub(" ", "", names(s$test$coefficients))
   return(res)
-}
-
-letters = c("d", "abd", "abc", "cd")
-
-improve_letters <- function(letters) {
-  unique_letters_in_order_of_encounter <- unique(unlist(strsplit(letters, "")))
-  alphabet <- c("a", "b", "c", "d", "e", "f", "g")
-  result <- lapply(strsplit(letters, ""), function(list){
-      indices_of_encounter <- unlist(lapply(list, function(car){
-        which(unique_letters_in_order_of_encounter == car)
-      }))
-      indices_of_encounter <- indices_of_encounter[order(indices_of_encounter)]
-      result <- paste(alphabet[indices_of_encounter], collapse = "")
-      return(result)
-    }) 
-  return(unlist(result))
 }
 
 compute_small_letters <- function(indicator_data, response_name) {
