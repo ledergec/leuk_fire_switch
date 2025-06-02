@@ -587,16 +587,16 @@ all_spec <- all_spec[!(all_spec$genus %in% all_taxa$genus),]
 gamma_goedicke <- length(unique(all_taxa$taxon)) + length(unique(all_spec$taxon))
 
 # Create altitude bins
-elevations <- seq(
+elevation_bins <- seq(
   min(transformed_data$elevation), 
   max(transformed_data$elevation), 
   (max(transformed_data$elevation) - min(transformed_data$elevation))/5)
 
 # Figure out how many plots are in each bin in climax data
 number_of_plots_per_bin = data.frame(min_elevation = numeric(), max_elevation = numeric(), n = numeric())
-for(i in 1:(length(elevations) - 1)) {
-  n <- length(unique(raw_data$global_id[raw_data$year == "climax" & raw_data$elevation_m >= elevations[i] & raw_data$elevation_m <= elevations[i+1]]))
-  number_of_plots_per_bin <- add_row(number_of_plots_per_bin, min_elevation =  elevations[i], max_elevation = elevations[i+1], n = n)
+for(i in 1:(length(elevation_bins) - 1)) {
+  n <- length(unique(raw_data$global_id[raw_data$year == "climax" & raw_data$elevation_m >= elevation_bins[i] & raw_data$elevation_m <= elevation_bins[i+1]]))
+  number_of_plots_per_bin <- add_row(number_of_plots_per_bin, min_elevation =  elevation_bins[i], max_elevation = elevation_bins[i+1], n = n)
 }
 
 # We reduce the complexity by throwing away plots which are present for only part of the years
@@ -611,9 +611,9 @@ length(plots_present_in_all_years)
 
 # Figure out which global_ids are in which altitude band
 plots_in_altitude_bands <- data.frame(min_elevation = numeric(), max_elevation = numeric(), bin = numeric(), global_ids = vector())
-for(i in 1:(length(elevations) - 1)) {
-  plots <- unique(non_climax_data$global_id[non_climax_data$elevation_m >= elevations[i] & non_climax_data$elevation_m <= elevations[i+1]])
-  plots_in_altitude_bands <- add_row(plots_in_altitude_bands, min_elevation =  elevations[i], max_elevation = elevations[i+1], bin = i, global_ids = plots)
+for(i in 1:(length(elevation_bins) - 1)) {
+  plots <- unique(non_climax_data$global_id[non_climax_data$elevation_m >= elevation_bins[i] & non_climax_data$elevation_m <= elevation_bins[i+1]])
+  plots_in_altitude_bands <- add_row(plots_in_altitude_bands, min_elevation =  elevation_bins[i], max_elevation = elevation_bins[i+1], bin = i, global_ids = plots)
 }
 
 # Do the bootstrapping of choosing random subsets of plots in the altitude bands and averaging the gamma diversity for the subsets
