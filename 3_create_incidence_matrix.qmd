@@ -42,7 +42,7 @@ for(species_name in species_names) {
   column <- (raw_data |> 
     group_by(plotid) |> 
     summarise(cover = if(sum(percentage200[`Species_unified_2004-23` == species_name]) > 0) {
-      mean(percentage200[`Species_unified_2004-23` == species_name])
+      100*(1 - prod(1-percentage200/100)) # probabilistic layer combination as proposed by Hagen S. Fischer
     } else {
       0
     }))
