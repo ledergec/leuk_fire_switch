@@ -98,8 +98,9 @@ create_functional_group_plot <- function(data, title) {
       scale_x_discrete(labels=labels$labels[labels$years %in% selected_years]) +
       ylab("Fraction of plants in Functional Group in %") +
       xlab("Year") +
-      ggtitle(paste("Mean fraction of plants in each functional group at ", title))
-  ggsave(paste("../Daten/Results/FunctionalGroups/mean_fraction_of_plants_in_each_functional_group_at", title, ".png"), plot = plot)
+      ggtitle(paste("Mean fraction of plants in each functional group at ", title)) +
+      theme_classic()
+  ggsave(paste("../Daten/Results/FunctionalGroups/mean_fraction_of_plants_in_each_functional_group_at", title, ".png"), plot = plot, width = 2000, height = 1500, units = "px")
   
   
   tmp <- tmp |> 
@@ -255,7 +256,6 @@ tmp <- left_join(tmp, check_list, join_by(check_list == Taxonname))
 tmp$n_total_all_years <- tmp$n_total_goedicke + tmp$n_total_2004 + tmp$n_total_2005 + tmp$n_total_2006 + tmp$n_total_2007 + tmp$n_total_2013 + tmp$n_total_2023 + tmp$n_total_climax
 
 tmp <- distinct(tmp, `Species_unified_2004-23`, n_total_all_years, n_total_goedicke, n_total_2004, n_total_2005, n_total_2006, n_total_2007, n_total_2013, n_total_2023, n_total_climax, n_high_goedicke, n_high_2004, n_high_2005, n_high_2006, n_high_2007, n_high_2013, n_high_2023, n_high_climax, n_mid_goedicke, n_mid_2004, n_mid_2005, n_mid_2006, n_mid_2007, n_mid_2013, n_mid_2023, n_mid_climax, n_low_goedicke, n_low_2004, n_low_2005, n_low_2006, n_low_2007, n_low_2013, n_low_2023, n_low_climax, CAT, neophyt, `Indigenat CH`)
-View(tmp)
 write_csv(tmp, "../Daten/Results/RedList/red_list_and_neophyte_summary.csv")
 ```
 
