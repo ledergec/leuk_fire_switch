@@ -304,15 +304,16 @@ Preparatory steps for Alpha and within plot beta diversity:
 aggregated <- raw_data |> 
   group_by(year, global_id) |>
   summarise(
-    a1 = sum(a1),
-    a10 = sum(a10),
-    b1 = sum(b1),
-    b10 = sum(b10),
-    c1 = sum(c1),
-    c10 = sum(c10),
-    d1 = sum(d1),
-    d10 = sum(d10),
-    total = n(),
+    a1 = ifelse(sum(!is.na(a1) > 0), length(unique(`Species_unified_2004-23`[!is.na(a1) & a1>0])), NA),
+    a10 = ifelse(sum(!is.na(a10) > 0), length(unique(`Species_unified_2004-23`[!is.na(a10) & a10>0])), NA),
+    b1 = ifelse(sum(!is.na(b1) > 0), length(unique(`Species_unified_2004-23`[!is.na(b1) & b1>0])), NA),
+    b10 = ifelse(sum(!is.na(b10) > 0), length(unique(`Species_unified_2004-23`[!is.na(b10) & b10>0])), NA),
+    c1 = ifelse(sum(!is.na(c1) > 0), length(unique(`Species_unified_2004-23`[!is.na(c1) & c1>0])), NA),
+    c10 = ifelse(sum(!is.na(c10) > 0), length(unique(`Species_unified_2004-23`[!is.na(c10) & c10>0])), NA),
+    d1 = ifelse(sum(!is.na(d1) > 0), length(unique(`Species_unified_2004-23`[!is.na(d1) & d1>0])), NA),
+    d10 = ifelse(sum(!is.na(d10) > 0), length(unique(`Species_unified_2004-23`[!is.na(d10) & d10>0])), NA),
+    total = length(unique(`Species_unified_2004-23`)),
+    n = n(),
     elevation = mean(elevation_m)
   )
 
