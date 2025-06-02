@@ -75,14 +75,14 @@ analyze_seed_backpressure <- function(data, title) {
     output = T
   )
   
-  species_venn <- createVennObj(nSets = 3, sNames = c('fire', 'goedicke', 'climax'))
-  species_venn <- setVennRegion(species_venn, c('fire'), as.numeric(sum(!(fire_species[!(fire_species %in% climax_species)] %in% goedicke_species))))
-  species_venn <- setVennRegion(species_venn, c('goedicke'), as.numeric(sum(!(goedicke_species[!(goedicke_species %in% climax_species)] %in% fire_species))))
-  species_venn <- setVennRegion(species_venn, c('climax'), as.numeric(sum(!(climax_species[!(climax_species %in% fire_species)] %in% goedicke_species))))
-  species_venn <- setVennRegion(species_venn, c('fire', 'goedicke', 'climax'), as.numeric(sum(fire_species[fire_species %in% climax_species] %in% goedicke_species)))
-  species_venn <- setVennRegion(species_venn, c('fire', 'goedicke'), as.numeric(sum(!(fire_species[fire_species %in% goedicke_species] %in% climax_species))))
-  species_venn <- setVennRegion(species_venn, c('fire', 'climax'), as.numeric(sum(!(fire_species[fire_species %in% climax_species] %in% goedicke_species))))
-  species_venn <- setVennRegion(species_venn, c('goedicke', 'climax'),  as.numeric(sum(!(goedicke_species[goedicke_species %in% climax_species] %in% fire_species))))
+  species_venn <- createVennObj(nSets = 3, sNames = c('Before', '2004-2023', 'Intact'))
+  species_venn <- setVennRegion(species_venn, c('2004-2023'), as.numeric(sum(!(fire_species[!(fire_species %in% climax_species)] %in% goedicke_species))))
+  species_venn <- setVennRegion(species_venn, c('Before'), as.numeric(sum(!(goedicke_species[!(goedicke_species %in% climax_species)] %in% fire_species))))
+  species_venn <- setVennRegion(species_venn, c('Intact'), as.numeric(sum(!(climax_species[!(climax_species %in% fire_species)] %in% goedicke_species))))
+  species_venn <- setVennRegion(species_venn, c('2004-2023', 'Before', 'Intact'), as.numeric(sum(fire_species[fire_species %in% climax_species] %in% goedicke_species)))
+  species_venn <- setVennRegion(species_venn, c('2004-2023', 'Before'), as.numeric(sum(!(fire_species[fire_species %in% goedicke_species] %in% climax_species))))
+  species_venn <- setVennRegion(species_venn, c('2004-2023', 'Intact'), as.numeric(sum(!(fire_species[fire_species %in% climax_species] %in% goedicke_species))))
+  species_venn <- setVennRegion(species_venn, c('Before', 'Intact'),  as.numeric(sum(!(goedicke_species[goedicke_species %in% climax_species] %in% fire_species))))
   species_venn <- plotVenn(nVennObj = species_venn)
   showSVG(species_venn, opacity=0.2, outFile = paste("../Daten/Results/Goedicke/", title, ".svg"))
   
