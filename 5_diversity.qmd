@@ -157,27 +157,35 @@ compute_p_values <- function(dist_method = "bray", min_altitude = elevations[1],
 create_distance_plot <- function(dist_method, ylabel, title, p_values, min_altitude = elevations[1], max_altitude = elevations[4] + 1) {
   subset <- transformed_data[transformed_data$elevation >= min_altitude & transformed_data$elevation < max_altitude,]
   dist_matrix <- vegdist(subset[, seq(5,length(colnames(transformed_data)),1)], method = dist_method)
-  
-  box_plot_dist <- data.frame(year = character(), dist = numeric())
+
+  # box_plot_dist <- data.frame(year = character(), dist = numeric())
+  # years <- c("goedicke", "2004","2005","2006","2007","2013", "2023", "climax")
+  # for(year in years) {
+  #   dist_m <- vegdist(subset[subset$year == year, seq(5,length(colnames(transformed_data)),1)], method = dist_method)
+  #   box_plot_dist <- add_row(box_plot_dist, year = year, dist = as.matrix(dist_m)[lower.tri(dist_m, diag = FALSE)])
+  # }
+  # box_plot_dist <- box_plot_dist[!is.na(box_plot_dist$dist),]
+  # box_plot_dist$year <- factor(box_plot_dist$year , levels = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax"))
+
+  mean_box_plot_dist <- data.frame(year = character(), dist = numeric())
   years <- c("goedicke", "2004","2005","2006","2007","2013", "2023", "climax")
   for(year in years) {
     dist_m <- vegdist(subset[subset$year == year, seq(5,length(colnames(transformed_data)),1)], method = dist_method)
-    box_plot_dist <- add_row(box_plot_dist, year = year, dist = dist_m[lower.tri(dist_m)])
+    mean_box_plot_dist <- add_row(mean_box_plot_dist, year = year, dist = colSums(as.matrix(dist_m), na.rm = T)/(attr(dist_m, "Size") - 1))
   }
-  box_plot_dist <- box_plot_dist[!is.na(box_plot_dist$dist),]
+  mean_box_plot_dist <- mean_box_plot_dist[!is.na(mean_box_plot_dist$dist),]
+  mean_box_plot_dist$year <- factor(mean_box_plot_dist$year , levels = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax"))
 
-  # one permutation is sufficient as it does not affect the mean, only the p-value
-  mean_dist_between_plot <- betadispersion(dist_matrix, subset$year, 1)
-  
-  
+  # # one permutation is sufficient as it does not affect the mean, only the p-value
+  # mean_dist_between_plot <- betadispersion(dist_matrix, subset$year, 1)
+
   pvals <- p_values$p_value
   names(pvals) <- p_values$years
   
   letters <- multcompLetters(pvals)
 
-  box_plot_dist$year <- factor(box_plot_dist$year , levels = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax"))
 
-  small_letters <- box_plot_dist |> 
+  small_letters <- mean_box_plot_dist |> 
     group_by(year) |>
     summarise(
       mean = mean(dist), 
@@ -186,40 +194,56 @@ create_distance_plot <- function(dist_method, ylabel, title, p_values, min_altit
   small_letters$letters[order(as.character(small_letters$year))] <- letters$Letters[order(names(letters$Letters))]
   small_letters$letters <- improve_letters(small_letters$letters)
   
-  plot <- ggplot(data = box_plot_dist, aes(x = year, y = dist, group = year)) +
+  # plot <- ggplot(data = box_plot_dist, aes(x = year, y = dist, group = year)) +
+  #   geom_boxplot() +
+  #   geom_point(data = mean_dist_between_plot[[2]], aes(x = Group, y = `Average Beta`), color = "red") +
+  #   scale_x_discrete(labels=labels$labels[labels$years %in% selected_years], drop = FALSE) +
+  #   xlab("Year") + 
+  #   ylab(ylabel) +
+  #   theme_classic() +
+  #   ggtitle(title) +
+  #   theme(plot.title = element_text(hjust = 0.5)) +
+  #   geom_text(data = small_letters, aes(x = year, y = quant, label = letters),
+  #             size = 3, 
+  #             vjust = -0.5,
+  #             hjust = -0.5,
+  #             angle = 90)
+
+  plot <- ggplot(data = mean_box_plot_dist, aes(x = year, y = dist, group = year)) +
     geom_boxplot() +
-    geom_point(data = mean_dist_between_plot[[2]], aes(x = Group, y = `Average Beta`), color = "red") +
+    # geom_point(data = mean_dist_between_plot[[2]], aes(x = Group, y = `Average Beta`), color = "red") +
     scale_x_discrete(labels=labels$labels[labels$years %in% selected_years], drop = FALSE) +
     xlab("Year") + 
     ylab(ylabel) +
     theme_classic() +
     ggtitle(title) +
     theme(plot.title = element_text(hjust = 0.5)) +
-    geom_text(data = small_letters, aes(x = year, y = quant, label = letters),
+    geom_text(data = small_letters, aes(x = year, y = min(mean_box_plot_dist$dist) - 0.1*(max(mean_box_plot_dist$dist) - min(mean_box_plot_dist$dist)), label = letters),
               size = 3, 
-              vjust = -0.5,
-              hjust = -0.5,
-              angle = 90)
-  
-  tmp <- box_plot_dist |> 
-    group_by(year) |> 
-    summarise(mean = mean(dist),
-              se = sd(dist) / sqrt(length(dist)))
-  
-  plot <- ggplot(data = tmp, aes(x = year, y = mean, group = year)) +
-    geom_point() +
-    geom_errorbar(aes(ymax = mean + se, ymin = mean - se), width=0.1, position=position_dodge(0)) + 
-    scale_x_discrete(labels=labels$labels[labels$years %in% selected_years], drop = FALSE) +
-    xlab("Year") + 
-    ylab(ylabel) +
-    theme_classic() +
-    ggtitle(title) +
-    theme(plot.title = element_text(hjust = 0.5)) +
-    geom_text(data = small_letters, aes(x = year, y = min(tmp$mean - tmp$se) - 0.1*(max(tmp$mean - tmp$se) - min(tmp$mean - tmp$se)), label = letters),
-              size = 3, 
-              vjust = 0,
-              hjust = 0)
-  return(plot)
+              vjust = -0,
+              hjust = -0)
+
+  # Code for standard error plot  
+  # tmp <- box_plot_dist |> 
+  #   group_by(year) |> 
+  #   summarise(mean = mean(dist),
+  #             se = sd(dist) / sqrt(length(dist)))
+  # 
+  # plot <- ggplot(data = tmp, aes(x = year, y = mean, group = year)) +
+  #   geom_point() +
+  #   geom_errorbar(aes(ymax = mean + se, ymin = mean - se), width=0.1, position=position_dodge(0)) + 
+  #   scale_x_discrete(labels=labels$labels[labels$years %in% selected_years], drop = FALSE) +
+  #   xlab("Year") + 
+  #   ylab(ylabel) +
+  #   theme_classic() +
+  #   ggtitle(title) +
+  #   theme(plot.title = element_text(hjust = 0.5)) +
+  #   geom_text(data = small_letters, aes(x = year, y = min(tmp$mean - tmp$se) - 0.1*(max(tmp$mean - tmp$se) - min(tmp$mean - tmp$se)), label = letters),
+  #             size = 3, 
+  #             vjust = 0,
+  #             hjust = 0)
+
+    return(plot)
 }
 
 bray_p_values <- compute_p_values("bray")
