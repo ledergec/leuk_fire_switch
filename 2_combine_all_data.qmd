@@ -820,17 +820,6 @@ names(goedickemeier_full_data)
 data <- rbind(data, goedickemeier_full_data)
 ```
 
-Compute average species richness per year
-```{r}
-data_without_spec <- data[!endsWith(data$`Species_unified_2004-23`, "spec."),]
-
-data_without_spec[data_without_spec$layer == 3,] |> # 
-  group_by(year, global_id) |> 
-  summarise(n = length(unique(`Species_unified_2004-23`))) |> 
-  group_by(year) |> 
-  summarise(m = mean(n))
-```
-
 Create aggregates for most species which have most likely miss identification problems:
 ```{r}
 data$`Species_unified_2004-23`[data$`Species_unified_2004-23` == "Acinos alpinus"] <- "Acinos spec."
@@ -1015,6 +1004,16 @@ definitively_remove <- c(
 
 final_data <- final_data[!(final_data$`Species_unified_2004-23`%in% definitively_remove),]
 ```
+
+Compute average species richness per year
+```{r}
+data_without_spec <- final_data[!endsWith(final_data$`Species_unified_2004-23`, "spec."),]
+
+data_without_spec[data_without_spec$layer == 3,] |> # 
+  group_by(year, global_id) |> 
+  summarise(n = length(unique(`Species_unified_2004-23`))) |> 
+  group_by(year) |> 
+  summarise(m = mean(n))
 ```
 
 Write the result to file
