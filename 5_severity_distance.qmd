@@ -68,8 +68,10 @@ compute_summary <- function(data, response, response_name) {
   glmm_formula <- paste(response, "~ year*elevation + year*distance_forest + year*mean_asches_depth")
   glmm_model <- lme(as.formula(glmm_formula),random=~1|global_id,data = full_data)
   glmm_summary <- summary(glmm_model)
-  length(names(glmm_summary$coefficients$fixed))
-  data.frame(index = 1:24, names = names(glmm_summary$coefficients$fixed))
+  
+  # Code to simplify finding the right indices
+  # length(names(glmm_summary$coefficients$fixed))
+  # data.frame(index = 1:24, names = names(glmm_summary$coefficients$fixed))
   altitude_2004 <- rep(0,24)
   altitude_2004[7] <- 1
   altitude_2005 <- rep(0,24)
