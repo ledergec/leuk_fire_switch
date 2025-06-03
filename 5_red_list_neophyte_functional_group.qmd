@@ -20,7 +20,6 @@ labels=data.frame(years = c("goedicke", "2004", "2005", "2006", "2007", "2013", 
 
 data <- read_csv("../Daten/Intermediate/combined_data.csv")
 data$`Species_unified_2004-23` <- sub(" cf\\.", "", data$`Species_unified_2004-23`)
-data <- data[!endsWith(data$`Species_unified_2004-23`," spec."),]
 data <- data[data$year != "goedicke" | data$in_vicinity,] # remove goedicke plots which are far away
 
 data$year <- factor(data$year, levels = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax"))
