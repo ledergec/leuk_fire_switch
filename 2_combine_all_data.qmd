@@ -988,7 +988,6 @@ final_data$in_vicinity[final_data$year == "goedicke" & (final_data$min_climax_di
 
 Add distance_forest to a plot where it is missing:
 ```{r}
-raw_data$distance_forest[raw_data$global_id == 872] <- 10
 ```
 
 Write the result to file
