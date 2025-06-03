@@ -47,3 +47,19 @@ improve_letters <- function(letters) {
   return(unlist(result))
 }
 
+# Convert p_values to significance codes
+convert_to_significance_code <- function(p_values) {
+  return(symnum(p_values, corr = FALSE, legend = F, na = "??", cutpoints = c(0, 0.001, 0.01, 0.05, 0.1, 1), symbols = c("***", " **", "  *", "  .", "   ")))
+}
+
+# convert_to_significance_code(c(0.00001, 0.1, 1, NA, 0.00000001))
+
+# Convert p_values to significance codes
+convert_to_pm <- function(estimates) {
+  res <- symnum(estimates, corr = FALSE, legend = F, na = "??", cutpoints = c(-Inf, 0, Inf), symbols = c("-", "+"))
+  res[estimates == 0] <- "0"
+  return(res)
+}
+
+
+# convert_to_pm(c(-1e-10, 0, 1e-10))
