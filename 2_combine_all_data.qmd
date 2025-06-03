@@ -988,6 +988,33 @@ final_data$in_vicinity[final_data$year == "goedicke" & (final_data$min_climax_di
 
 Add distance_forest to a plot where it is missing:
 ```{r}
+final_data$distance_forest[final_data$global_id == 872] <- 10
+```
+
+Remove undetermined plants (this concerns 35 observations - 2 in 2004, 7 in 2006, 2 in 2007, 1 in 2013, 9 in 2023, 14 in climax and reduces the mean alpha diversity by 0.03 plant / plot):
+```{r}
+definitively_remove <- c(
+  "A10",
+  "Keimling 2",
+  "Keimling 1",
+  "Pflanze",
+  "Gehölz unbekannt",
+  "Runde blätter",
+  "Poaceae spec.",
+  "Orchidaceae spec.",
+  "Ranunculaceae spec.",
+  "Asteraceae spec.",
+  "Amaranthaceae spec.",
+  "Apiaceae spec.",
+  "Asteraceae spec.",
+  "Einjährig",
+  "Lamiaceae spec.",
+  "Caryophyllaceae spec.",
+  "Eudicot spec."
+)
+
+final_data <- final_data[!(final_data$`Species_unified_2004-23`%in% definitively_remove),]
+```
 ```
 
 Write the result to file
