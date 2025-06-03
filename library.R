@@ -61,5 +61,18 @@ convert_to_pm <- function(estimates) {
   return(res)
 }
 
-
 # convert_to_pm(c(-1e-10, 0, 1e-10))
+
+# Function to split a list of string and extract the first one
+string_vec <- c()
+first_word <- function(string_vec, sep = " "){
+  if(length(string_vec) == 0) {
+    return(character())
+  } else {
+    return(unlist(lapply(strsplit(string_vec, sep), function(list){ return(list[1]) })))
+  }
+}
+
+# first_word(c())
+# first_word(c("correct incorrect", "correct incorrect", "correct"))
+# first_word(c("correct#incorrect", "correct#incorrect", "correct"), sep = "#")
