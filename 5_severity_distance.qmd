@@ -1,0 +1,253 @@
+---
+title: "severity_and_distance"
+format: html
+---
+
+```{r}
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(nlme)
+library(lme4)
+library(ggpubr)
+```
+
+Load common code
+```{r}
+source("library.R")
+```
+
+
+Assemble the data to be able to do the computation:
+```{r}
+raw_data <- read_csv("../Daten/Intermediate/combined_data.csv")
+raw_data <- raw_data[raw_data$year != "goedicke" & raw_data$year != "climax",] # only keep the plots on the fire patch where the analysis makes sense
+raw_data$distance_forest[raw_data$global_id == 872] <- 10
+
+alpha_diversity <- compute_alpha_diversity(raw_data)
+alpha_diversity <- alpha_diversity[,-which(names(alpha_diversity) == "elevation")]
+
+mean_indicator_values <- read_csv("../Daten/Intermediate/mean_indicator_values.csv")
+mean_indicator_values <- mean_indicator_values[mean_indicator_values$year != "goedicke" & mean_indicator_values$year != "climax",]
+
+distance_and_asches <- raw_data |> 
+  group_by(global_id) |> 
+  summarise(
+    distance_forest = distance_forest[1],
+    mean_asches_depth = mean_asches_depth[1]
+  )
+
+full_data <- full_join(mean_indicator_values, alpha_diversity, join_by(global_id == global_id, year == year))
+full_data <- full_join(full_data, distance_and_asches, join_by(global_id))
+```
+
+Aborted tries:
+When using lme with interactions it seems like the p-values for the interaction terms show the probability that in a given year the influence of the variable e.g. distance or severity is different from its influence in the first year.
+The function lmer does not compute any p-values because according to some statisticians this does not make sense in this case.
+```{r}
+m1 <- lme(total ~ elevation + year*distance_forest + year*mean_asches_depth,random=~1|global_id,data = full_data)
+summary(m1)
+
+model <- lmer(total ~ elevation + year*distance_forest + year*mean_asches_depth + (1|global_id), data=full_data)
+print(summary(model), correlation = T)
+```
+
+Compute statistical model and p-values using separate models for each year:
+```{r}
+response <- "total"
+response_name <- "alpha"
+data <- full_data
+
+compute_summary <- function(data, response, response_name) {
+  years <- unique(data$year)
+  years <- years[order(years)]
+  p_values <- data.frame(year = character(), v_altitude = numeric(), p_val_altitude = numeric(), v_distance = numeric(), p_val_distance = numeric(), v_severity = numeric(), p_val_severity = numeric())
+  for(year in years) {
+    formula <- paste(response, "~ elevation + distance_forest + mean_asches_depth")
+    model <- glm(as.formula(formula), data = data[data$year == year,])
+    sum <- summary(model)
+    p_values <- add_row(p_values, year = year, v_altitude = sum$coefficients[2,1], p_val_altitude = sum$coefficients[2,4], v_distance = sum$coefficients[3,1], p_val_distance = sum$coefficients[3,4], v_severity = sum$coefficients[4,1], p_val_severity = sum$coefficients[4,4])
+  }
+
+  result <- data.frame(
+    year = p_values$year,
+    a = paste(convert_to_pm(p_values$v_altitude), convert_to_significance_code(p_values$p_val_altitude)),
+    d = paste(convert_to_pm(p_values$v_distance), convert_to_significance_code(p_values$p_val_distance)),
+    s = paste(convert_to_pm(p_values$v_severity), convert_to_significance_code(p_values$p_val_severity))
+  )
+  names(result) <- c("year", paste("a_", response_name, sep = ""), paste("d_", response_name, sep = ""), paste("s_", response_name, sep = ""))
+  return(result)
+}
+
+compute_all_summaries <- function(data) {
+  alpha_summary <- compute_summary(data, "total", "alpha")
+  m_summary <- compute_summary(data, "EIVEresM", "M")
+  n_summary <- compute_summary(data, "EIVEresN", "N")
+  r_summary <- compute_summary(data, "EIVEresR", "R")
+  l_summary <- compute_summary(data, "EIVEresL", "L")
+  t_summary <- compute_summary(data, "EIVEresT", "T")
+  dist_severity_summary <- compute_summary(data, "DistSeverity", "dist_severity")
+  dist_frequency_summary <- compute_summary(data, "DistFrequency", "dist_frequency")
+  mowing_frequency_summary <- compute_summary(data, "MowingFrequency", "mowing_frequency")
+  grazing_pressure_summary <- compute_summary(data, "GrazingPressure", "grazing_pressure")
+  soil_disturbance_summary <- compute_summary(data, "SoilDisturbance", "soil_disturbance")
+  competition_summary <- compute_summary(data, "Competition", "competition")
+  stress_summary <- compute_summary(data, "Stress", "stress")
+  ruderalness_summary <- compute_summary(data, "Ruderalness", "ruderalness")
+  hemeroby_summary <- compute_summary(data, "EM", "hemeroby")
+  log_seed_mass_summary <- compute_summary(data, "log_dry_seed_mass_mg", "log_seed_mass")
+  log_sla_summary <- compute_summary(data, "log_sla_cm2_per_mg", "log_sla")
+  log_adult_height_summary <- compute_summary(data, "log_canopy_height_m", "log_adult_height")
+  
+  all_summaries <- full_join(alpha_summary, m_summary, join_by(year))
+  all_summaries <- full_join(all_summaries, n_summary, join_by(year))
+  all_summaries <- full_join(all_summaries, r_summary, join_by(year))
+  all_summaries <- full_join(all_summaries, l_summary, join_by(year))
+  all_summaries <- full_join(all_summaries, t_summary, join_by(year))
+  all_summaries <- full_join(all_summaries, dist_severity_summary, join_by(year))
+  all_summaries <- full_join(all_summaries, dist_frequency_summary, join_by(year))
+  all_summaries <- full_join(all_summaries, mowing_frequency_summary, join_by(year))
+  all_summaries <- full_join(all_summaries, grazing_pressure_summary, join_by(year))
+  all_summaries <- full_join(all_summaries, soil_disturbance_summary, join_by(year))
+  all_summaries <- full_join(all_summaries, competition_summary, join_by(year))
+  all_summaries <- full_join(all_summaries, stress_summary, join_by(year))
+  all_summaries <- full_join(all_summaries, ruderalness_summary, join_by(year))
+  all_summaries <- full_join(all_summaries, hemeroby_summary, join_by(year))
+  all_summaries <- full_join(all_summaries, log_seed_mass_summary, join_by(year))
+  all_summaries <- full_join(all_summaries, log_sla_summary, join_by(year))
+  all_summaries <- full_join(all_summaries, log_adult_height_summary, join_by(year))
+  return(all_summaries)
+}
+
+create_distance_plot <- function(data, response, response_name, title) {
+  summary <- compute_summary(data, response, response)
+  plot <- ggplot(data, aes(x = distance_forest, y = !!sym(response), color = year)) +
+    geom_point(aes(shape = altitude_band)) +
+    geom_smooth(method = lm, se = F) +
+    scale_color_discrete(name = "Year", labels = paste(summary$year, summary[[paste("d", response, sep = "_")]])) + 
+    scale_shape_discrete(name = "Altitude Band", labels = c("High", "Mid", "Low")) + 
+    theme_classic() +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    xlab("Distance from Forest [m]") +
+    ylab(response_name) + 
+    ggtitle(title)
+  return(plot)
+}
+
+create_severity_plot <- function(data, response, response_name, title) {
+  summary <- compute_summary(data, response, response)
+  plot <- ggplot(data, aes(x = mean_asches_depth, y = !!sym(response), color = year)) +
+    geom_point(aes(shape = altitude_band)) +
+    geom_smooth(method = lm, se = F) +
+    scale_color_discrete(name = "Year", labels = paste(summary$year, summary[[paste("s", response, sep = "_")]])) + 
+    scale_shape_discrete(name = "Altitude Band", labels = c("High", "Mid", "Low")) + 
+    theme_classic() +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    xlab("Mean Ashes Depth [cm]") +
+    ylab(response_name) +
+    ggtitle(title)
+
+  return(plot)
+}
+
+filename <- "../Daten/Results/SeverityDistance/all_altitudes_distance.png"
+
+create_full_distance_plot <- function(data, filename) {
+  p_alpha <- create_distance_plot(data, "total", "#species", "Alpha Diversity")
+  p_moisture <- create_distance_plot(data, "EIVEresM", "Moisture", "M")
+  p_nutrients <- create_distance_plot(data, "EIVEresN", "Nutrients", "N")
+  p_reaction <- create_distance_plot(data, "EIVEresR", "Reaction", "R")
+  p_light <- create_distance_plot(data, "EIVEresL", "Light", "L")
+  p_temperature <- create_distance_plot(data, "EIVEresT", "Temperature", "T")
+  p_dist_sev <- create_distance_plot(data, "DistSeverity", "Disturbance Severity", "Disturbance Severity")
+  p_dist_freq <- create_distance_plot(data, "DistFrequency", "Disturbance Frequency", "Disturbance Frequency")
+  p_mowing_freq <- create_distance_plot(data, "MowingFrequency", "Mowing Frequency", "Mowing Frequency")
+  p_grazing_pressure <- create_distance_plot(data, "GrazingPressure", "Grazing Pressure", "Grazing Pressure")
+  p_soil_disturbance <- create_distance_plot(data, "SoilDisturbance", "Soil Disturbance", "Soil Distrubance")
+  p_competition <- create_distance_plot(data, "Competition", "Competition", "Competition")
+  p_stress <- create_distance_plot(data, "Stress", "Stress", "Stress")
+  p_ruderalness <- create_distance_plot(data, "Ruderalness", "Ruderalness", "Ruderalness")
+  p_hemeroby <- create_distance_plot(data, "EM", "Hemeroby", "Hemeroby")
+  p_seed <- create_distance_plot(data, "log_dry_seed_mass_mg", "log10(Dry Seed Mass (mg))", "Seed Mass")
+  p_leaf <- create_distance_plot(data, "log_sla_cm2_per_mg", "log10(SLA (cm^2/mg))", "Leaf Area")
+  p_height <- create_distance_plot(data, "log_canopy_height_m", "log10(Canopy height (m))", "Canopy Height")
+  
+  p <- ggarrange(
+    p_alpha,
+    p_moisture, p_nutrients, p_reaction, 
+    p_light, p_temperature, p_dist_sev, 
+    p_dist_freq, p_mowing_freq, p_grazing_pressure, 
+    p_soil_disturbance, p_competition, p_stress, 
+    p_ruderalness, p_hemeroby, p_seed, 
+    p_leaf, p_height, 
+    common.legend = F,
+    ncol = 6,
+    nrow = 3
+  )
+  p
+  ggsave(filename, p, width = 9000, height = 4200, units = "px")
+}
+
+
+create_full_severity_plot <- function(data, filename) {
+  p_alpha <- create_severity_plot(data, "total", "#species", "Alpha Diversity")
+  p_moisture <- create_severity_plot(data, "EIVEresM", "Moisture", "M")
+  p_nutrients <- create_severity_plot(data, "EIVEresN", "Nutrients", "N")
+  p_reaction <- create_severity_plot(data, "EIVEresR", "Reaction", "R")
+  p_light <- create_severity_plot(data, "EIVEresL", "Light", "L")
+  p_temperature <- create_severity_plot(data, "EIVEresT", "Temperature", "T")
+  p_dist_sev <- create_severity_plot(data, "DistSeverity", "Disturbance Severity", "Disturbance Severity")
+  p_dist_freq <- create_severity_plot(data, "DistFrequency", "Disturbance Frequency", "Disturbance Frequency")
+  p_mowing_freq <- create_severity_plot(data, "MowingFrequency", "Mowing Frequency", "Mowing Frequency")
+  p_grazing_pressure <- create_severity_plot(data, "GrazingPressure", "Grazing Pressure", "Grazing Pressure")
+  p_soil_disturbance <- create_severity_plot(data, "SoilDisturbance", "Soil Disturbance", "Soil Distrubance")
+  p_competition <- create_severity_plot(data, "Competition", "Competition", "Competition")
+  p_stress <- create_severity_plot(data, "Stress", "Stress", "Stress")
+  p_ruderalness <- create_severity_plot(data, "Ruderalness", "Ruderalness", "Ruderalness")
+  p_hemeroby <- create_severity_plot(data, "EM", "Hemeroby", "Hemeroby")
+  p_seed <- create_severity_plot(data, "log_dry_seed_mass_mg", "log10(Dry Seed Mass (mg))", "Seed Mass")
+  p_leaf <- create_severity_plot(data, "log_sla_cm2_per_mg", "log10(SLA (cm^2/mg))", "Leaf Area")
+  p_height <- create_severity_plot(data, "log_canopy_height_m", "log10(Canopy height (m))", "Canopy Height")
+  
+  p <- ggarrange(
+    p_alpha,
+    p_moisture, p_nutrients, p_reaction, 
+    p_light, p_temperature, p_dist_sev, 
+    p_dist_freq, p_mowing_freq, p_grazing_pressure, 
+    p_soil_disturbance, p_competition, p_stress, 
+    p_ruderalness, p_hemeroby, p_seed, 
+    p_leaf, p_height, 
+    common.legend = F,
+    ncol = 6,
+    nrow = 3
+  )
+  p
+  ggsave(filename, p, width = 9000, height = 4200, units = "px")
+}
+
+# create_distance_plot(full_data, "total", "Alpha Diversity")
+# create_severity_plot(full_data, "total", "Alpha Diversity")
+
+all_altidudes_summaries <- compute_all_summaries(full_data)
+write_csv(all_altidudes_summaries, "../Daten/Results/SeverityDistance/all_altitudes_summaries.csv")
+
+high_altidudes_summaries <- compute_all_summaries(full_data[full_data$altitude_band == "high",])
+write_csv(high_altidudes_summaries, "../Daten/Results/SeverityDistance/high_altidudes_summaries.csv")
+mid_altidudes_summaries <- compute_all_summaries(full_data[full_data$altitude_band == "mid",])
+write_csv(mid_altidudes_summaries, "../Daten/Results/SeverityDistance/mid_altidudes_summaries.csv")
+low_altidudes_summaries <- compute_all_summaries(full_data[full_data$altitude_band == "low",])
+write_csv(low_altidudes_summaries, "../Daten/Results/SeverityDistance/low_altidudes_summaries.csv")
+
+create_full_distance_plot(full_data, "../Daten/Results/SeverityDistance/all_altitudes_distance.png")
+create_full_distance_plot(full_data[full_data$altitude_band == "high",], "../Daten/Results/SeverityDistance/high_altitudes_distance.png")
+create_full_distance_plot(full_data[full_data$altitude_band == "mid",], "../Daten/Results/SeverityDistance/mid_altitudes_distance.png")
+create_full_distance_plot(full_data[full_data$altitude_band == "low",], "../Daten/Results/SeverityDistance/low_altitudes_distance.png")
+
+create_full_severity_plot(full_data, "../Daten/Results/SeverityDistance/all_altitudes_severity.png")
+create_full_severity_plot(full_data[full_data$altitude_band == "high",], "../Daten/Results/SeverityDistance/high_altitudes_severity.png")
+create_full_severity_plot(full_data[full_data$altitude_band == "mid",], "../Daten/Results/SeverityDistance/mid_altitudes_severity.png")
+create_full_severity_plot(full_data[full_data$altitude_band == "low",], "../Daten/Results/SeverityDistance/low_altitudes_severity.png")
+
+```
+
