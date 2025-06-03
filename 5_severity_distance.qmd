@@ -9,8 +9,8 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(nlme)
-library(lme4)
 library(ggpubr)
+library(multcomp)
 ```
 
 Load common code
@@ -45,13 +45,8 @@ full_data <- full_join(full_data, distance_and_asches, join_by(global_id))
 Aborted tries:
 When using lme with interactions it seems like the p-values for the interaction terms show the probability that in a given year the influence of the variable e.g. distance or severity is different from its influence in the first year.
 The function lmer does not compute any p-values because according to some statisticians this does not make sense in this case.
-```{r}
-m1 <- lme(total ~ elevation + year*distance_forest + year*mean_asches_depth,random=~1|global_id,data = full_data)
-summary(m1)
 
-model <- lmer(total ~ elevation + year*distance_forest + year*mean_asches_depth + (1|global_id), data=full_data)
-print(summary(model), correlation = T)
-```
+Found excellent explanantion on how to do this: https://stats.stackexchange.com/questions/348641/specify-contrasts-for-lme-with-interactions
 
 Compute statistical model and p-values using separate models for each year:
 ```{r}
@@ -69,14 +64,88 @@ compute_summary <- function(data, response, response_name) {
     sum <- summary(model)
     p_values <- add_row(p_values, year = year, v_altitude = sum$coefficients[2,1], p_val_altitude = sum$coefficients[2,4], v_distance = sum$coefficients[3,1], p_val_distance = sum$coefficients[3,4], v_severity = sum$coefficients[4,1], p_val_severity = sum$coefficients[4,4])
   }
+  
+  glmm_formula <- paste(response, "~ year*elevation + year*distance_forest + year*mean_asches_depth")
+  glmm_model <- lme(as.formula(glmm_formula),random=~1|global_id,data = full_data)
+  glmm_summary <- summary(glmm_model)
+  length(names(glmm_summary$coefficients$fixed))
+  data.frame(index = 1:24, names = names(glmm_summary$coefficients$fixed))
+  altitude_2004 <- rep(0,24)
+  altitude_2004[7] <- 1
+  altitude_2005 <- rep(0,24)
+  altitude_2005[7] <- 1
+  altitude_2005[10] <- 1
+  altitude_2006 <- rep(0,24)
+  altitude_2006[7] <- 1
+  altitude_2006[11] <- 1
+  altitude_2007 <- rep(0,24)
+  altitude_2007[7] <- 1
+  altitude_2007[12] <- 1
+  altitude_2013 <- rep(0,24)
+  altitude_2013[7] <- 1
+  altitude_2013[13] <- 1
+  altitude_2023 <- rep(0,24)
+  altitude_2023[7] <- 1
+  altitude_2023[14] <- 1
+  
+  distance_2004 <- rep(0,24)
+  distance_2004[8] <- 1
+  distance_2005 <- rep(0,24)
+  distance_2005[8] <- 1
+  distance_2005[15] <- 1
+  distance_2006 <- rep(0,24)
+  distance_2006[8] <- 1
+  distance_2006[16] <- 1
+  distance_2007 <- rep(0,24)
+  distance_2007[8] <- 1
+  distance_2007[17] <- 1
+  distance_2013 <- rep(0,24)
+  distance_2013[8] <- 1
+  distance_2013[18] <- 1
+  distance_2023 <- rep(0,24)
+  distance_2023[8] <- 1
+  distance_2023[19] <- 1
+  
+  severity_2004 <- rep(0,24)
+  severity_2004[9] <- 1
+  severity_2005 <- rep(0,24)
+  severity_2005[9] <- 1
+  severity_2005[20] <- 1
+  severity_2006 <- rep(0,24)
+  severity_2006[9] <- 1
+  severity_2006[21] <- 1
+  severity_2007 <- rep(0,24)
+  severity_2007[9] <- 1
+  severity_2007[22] <- 1
+  severity_2013 <- rep(0,24)
+  severity_2013[9] <- 1
+  severity_2013[23] <- 1
+  severity_2023 <- rep(0,24)
+  severity_2023[9] <- 1
+  severity_2023[24] <- 1
+  
+  c <- rbind(altitude_2004, altitude_2005, altitude_2006, altitude_2007, altitude_2013, altitude_2023, distance_2004, distance_2005, distance_2006, distance_2007, distance_2013, distance_2023, severity_2004, severity_2005, severity_2006, severity_2007, severity_2013, severity_2023)
+  
+  # # to test whether indeed the right combination has been selected
+  # for(i in 1:length(rownames(c))) {
+  #   rownames(c)[i] <- paste(names(glmm_summary$coefficients$fixed)[which(c[i,] == 1)], collapse = " ")
+  # }
+  
+  glht_holm_result <- glht(glmm_model, linfct = c, test=adjusted("holm"))
+  glht_holm_summary <- summary(glht_holm_result, test=adjusted("holm"))
+  glht_none_result <- glht(glmm_model, linfct = c, test=adjusted("none"))
+  glht_none_summary <- summary(glht_holm_result, test=adjusted("none"))
+  glht_holm_summary$test$pvalues
+  glht_holm_summary$test$coefficients
 
   result <- data.frame(
     year = p_values$year,
-    a = paste(convert_to_pm(p_values$v_altitude), convert_to_significance_code(p_values$p_val_altitude)),
-    d = paste(convert_to_pm(p_values$v_distance), convert_to_significance_code(p_values$p_val_distance)),
-    s = paste(convert_to_pm(p_values$v_severity), convert_to_significance_code(p_values$p_val_severity))
+    a = paste(convert_to_pm(p_values$v_altitude), convert_to_significance_code(p_values$p_val_altitude), convert_to_pm(glht_holm_summary$test$coefficients[1:6]), convert_to_significance_code(glht_holm_summary$test$pvalues[1:6]), convert_to_pm(glht_none_summary$test$coefficients[1:6]), convert_to_significance_code(glht_none_summary$test$pvalues[1:6])),
+    d = paste(convert_to_pm(p_values$v_distance), convert_to_significance_code(p_values$p_val_distance), convert_to_pm(glht_holm_summary$test$coefficients[7:12]), convert_to_significance_code(glht_holm_summary$test$pvalues[7:12]), convert_to_pm(glht_none_summary$test$coefficients[7:12]), convert_to_significance_code(glht_none_summary$test$pvalues[7:12])),
+    s = paste(convert_to_pm(p_values$v_severity), convert_to_significance_code(p_values$p_val_severity), convert_to_pm(glht_holm_summary$test$coefficients[13:18]), convert_to_significance_code(glht_holm_summary$test$pvalues[13:18]), convert_to_pm(glht_none_summary$test$coefficients[13:18]), convert_to_significance_code(glht_none_summary$test$pvalues[13:18]))
   )
   names(result) <- c("year", paste("a_", response_name, sep = ""), paste("d_", response_name, sep = ""), paste("s_", response_name, sep = ""))
+
   return(result)
 }
 
