@@ -50,25 +50,6 @@ data <- data_functional_group
 create_functional_group_plot <- function(data, title) {
   data_functional_group <- distinct(data, year, global_id, `Species_unified_2004-23`, EG)
 
-  tmp <- data_functional_group |> 
-    dplyr::select(year, global_id, EG) |>
-    group_by(year, global_id) |>
-    summarise(
-      n_forest_plant = sum(EG == '1'),
-      n_mountain_plant = sum(EG == '2'),
-      n_low_elevation_pioneer = sum(EG == '3'),
-      n_water = sum(EG == '4'),
-      n_wetland = sum(EG == '5'),
-      n_dry_meadow = sum(EG == '6'),
-      n_ruderal = sum(EG == '7'),
-      n_fertilized_meadow = sum(EG == '8')
-    )
-  
-  plot <- pivot_longer(tmp, c("n_forest_plant", "n_mountain_plant", "n_low_elevation_pioneer", "n_water", "n_wetland", "n_dry_meadow", "n_ruderal", "n_fertilized_meadow")) |> ggplot(aes(fill=name, y=value, x=year)) + 
-      geom_boxplot() +
-      ggtitle(paste("number of plants in functional groups at ", title))
-  ggsave(paste("../Daten/Results/FunctionalGroups/number_of_plants_in_functional_groups_at", title, ".png"), plot = plot)
-  
   tmp <- data_functional_group[data_functional_group$year %in% selected_years,] |> 
     dplyr::select(year, global_id, EG) |>
     group_by(year, global_id) |>
@@ -101,26 +82,6 @@ create_functional_group_plot <- function(data, title) {
       theme_classic()
   ggsave(paste("../Daten/Results/FunctionalGroups/mean_fraction_of_plants_in_each_functional_group_at", title, ".png"), plot = plot, width = 2000, height = 1500, units = "px")
   
-  
-  tmp <- tmp |> 
-    group_by(year) |>
-    summarise(
-      p_forest_plant = mean(p_forest_plant),
-      p_mountain_plant = mean(p_mountain_plant),
-      p_low_elevation_pioneer = mean(p_low_elevation_pioneer),
-      p_water = mean(p_water),
-      p_wetland = mean(p_wetland),
-      p_dry_meadow = mean(p_dry_meadow),
-      p_ruderal = mean(p_ruderal),
-      p_fertilized_meadow = mean(p_fertilized_meadow)
-    ) 
-  
-  tmp <- pivot_longer(tmp, c("p_forest_plant", "p_mountain_plant", "p_low_elevation_pioneer", "p_water", "p_wetland", "p_dry_meadow", "p_ruderal", "p_fertilized_meadow"))
-  
-  plot <- ggplot(tmp, aes(fill=name, y=value, x=year)) + 
-      geom_bar(position="stack", stat="identity") +
-      ggtitle(paste("% of plants in functional groups at ", title))
-  ggsave(paste("../Daten/Results/FunctionalGroups/percent_plants_in_functional_groups_stacked_at", title, ".png"), plot = plot)
 }
 
 create_functional_group_plot(data_functional_group, "all altitudes")
