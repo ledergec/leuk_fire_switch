@@ -1,0 +1,61 @@
+---
+title: "spec analysis"
+format: html
+---
+
+Load necessary libraries:
+```{r}
+library(readr)
+library(dplyr)
+library(ggplot2)
+```
+
+Read combined data:
+```{r}
+data <- read_csv("../Daten/Intermediate/combined_data.csv")
+data <- data[data$year != "goedicke" | data$in_vicinity,]
+```
+
+
+```{r}
+alpha_200 <- data |> # 
+  group_by(year, global_id) |> 
+  summarise(n = length(unique(`Species_unified_2004-23`))) |> 
+  group_by(year) |> 
+  summarise(alpha_200 = mean(n))
+
+data_with_spec <- data[endsWith(data$`Species_unified_2004-23`, "spec."),]
+
+alpha_spec <- data_with_spec |> # 
+  group_by(year, global_id) |> 
+  summarise(n = length(unique(`Species_unified_2004-23`))) |> 
+  group_by(year) |> 
+  summarise(alpha_spec_200 = mean(n))
+
+alpha_200
+alpha_spec
+alpha_spec$alpha_200/alpha_200$alpha_spec_200
+
+spec_data <- data[endsWith(data$`Species_unified_2004-23`, "spec."),]
+gamma_spec = data.frame(year = character(), gamma_spec = numeric(), n_spec_observations = numeric(), n_observations = numeric())
+for(year in unique(spec_data$year)) {
+  gamma_spec <- add_row(gamma_spec, 
+                        year = year, 
+                        gamma_spec = length(unique(spec_data$`Species_unified_2004-23`[spec_data$year == year])),
+                        n_spec_observations = length(spec_data$`Species_unified_2004-23`[spec_data$year == year]), 
+                        n_observations = length(data$`Species_unified_2004-23`[data$year == year]))
+}
+gamma_spec
+
+full_table <- full_join(full_join(alpha_200, alpha_spec, join_by(year)), gamma_spec, join_by(year))
+
+full_table$mean_percent_spec_per_plot <- 100*full_table$alpha_spec_200/full_table$alpha_200
+full_table$percent_observations_per_year <- 100*full_table$n_spec_observations/full_table$n_observations
+
+full_table
+```
+
+```{r}
+
+```
+
