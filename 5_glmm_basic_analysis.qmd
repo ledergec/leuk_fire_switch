@@ -120,6 +120,26 @@ create_se_plot <- function(indicator_data, response_name, ylab, title) {
   return(p)
 }
 
+create_altitude_bands_se_plot <- function(indicator_data, response_name, ylab, title) {
+  p <- indicator_data |> 
+    group_by(year, altitude_band) |>
+    summarise(
+      mean = mean(!!sym(response_name)),
+      se = sd(!!sym(response_name))/sqrt(length(!!sym(response_name)))
+    ) |>
+    ggplot(aes(y=mean, x=year, color = altitude_band)) + 
+      geom_errorbar(aes(ymin=mean - se, ymax=mean + se), width=0.1, position=position_dodge(0)) +
+      geom_point() +
+      theme_classic() +
+      ylab(ylab) +
+      xlab("Year") +
+      scale_x_discrete(labels=labels$labels[labels$years %in% selected_years]) +
+      theme(plot.title = element_text(hjust = 0.5)) +
+      ggtitle(title)
+  
+  return(p)
+}
+
 compute_p_values <- function(indicator_data, response_name) {
   tmp_formula_string <- paste(response_name, " ~ elevation + year + (1|global_id)", sep = "")
   model <- lmer(as.formula(tmp_formula_string), data=indicator_data)
@@ -197,6 +217,40 @@ create_full_se_plot <- function(indicator_data, filename) {
   ggsave(filename, p, width = 3000, height = 4200, units = "px")
 }
 
+
+create_full_altitude_bands_se_plot <- function(indicator_data, filename) {
+  p_moisture <- create_altitude_bands_se_plot(indicator_data, "EIVEresM", "Moisture", "M")
+  p_nutrients <- create_altitude_bands_se_plot(indicator_data, "EIVEresN", "Nutrients", "N")
+  p_reaction <- create_altitude_bands_se_plot(indicator_data, "EIVEresR", "Reaction", "R")
+  p_light <- create_altitude_bands_se_plot(indicator_data, "EIVEresL", "Light", "L")
+  p_temperature <- create_altitude_bands_se_plot(indicator_data, "EIVEresT", "Temperature", "T")
+  p_dist_sev <- create_altitude_bands_se_plot(indicator_data, "DistSeverity", "Disturbance Severity", "Disturbance Severity")
+  p_dist_freq <- create_altitude_bands_se_plot(indicator_data, "DistFrequency", "Disturbance Frequency", "Disturbance Frequency")
+  p_mowing_freq <- create_altitude_bands_se_plot(indicator_data, "MowingFrequency", "Mowing Frequency", "Mowing Frequency")
+  p_grazing_pressure <- create_altitude_bands_se_plot(indicator_data, "GrazingPressure", "Grazing Pressure", "Grazing Pressure")
+  p_soil_disturbance <- create_altitude_bands_se_plot(indicator_data, "SoilDisturbance", "Soil Disturbance", "Soil Distrubance")
+  p_competition <- create_altitude_bands_se_plot(indicator_data, "Competition", "Competition", "Competition")
+  p_stress <- create_altitude_bands_se_plot(indicator_data, "Stress", "Stress", "Stress")
+  p_ruderalness <- create_altitude_bands_se_plot(indicator_data, "Ruderalness", "Ruderalness", "Ruderalness")
+  p_hemeroby <- create_altitude_bands_se_plot(indicator_data, "EM", "Hemeroby", "Hemeroby")
+  p_seed <- create_altitude_bands_se_plot(indicator_data, "log_dry_seed_mass_mg", "log10(Dry Seed Mass (mg))", "Seed Mass")
+  p_leaf <- create_altitude_bands_se_plot(indicator_data, "log_sla_cm2_per_mg", "log10(SLA (cm^2/mg))", "Leaf Area")
+  p_height <- create_altitude_bands_se_plot(indicator_data, "log_canopy_height_m", "log10(Canopy height (m))", "Canopy Height")
+  
+  p <- ggarrange(
+    p_moisture, p_nutrients, p_reaction, 
+    p_light, p_temperature, p_dist_sev, 
+    p_dist_freq, p_mowing_freq, p_grazing_pressure, 
+    p_soil_disturbance, p_competition, p_stress, 
+    p_ruderalness, p_hemeroby, p_seed, 
+    p_leaf, p_height, 
+    ncol = 3,
+    nrow = 6
+  )
+  p
+  ggsave(filename, p, width = 3000, height = 4200, units = "px")
+}
+
 compute_all_p_values <- function(indicator_data, filename) {
   p_moisture <- compute_p_values(indicator_data, "EIVEresM")
   p_nutrients <- compute_p_values(indicator_data, "EIVEresN")
@@ -238,6 +292,8 @@ compute_all_p_values <- function(indicator_data, filename) {
   p_values
   write_csv(p_values, filename)
 }
+
+create_full_altitude_bands_se_plot(mean_iv, "../Daten/Results/Successional Dynamics/Basic Analysis/all_taxon_altitude_bands_traits_box_plot.png")
 
 create_full_box_plot(mean_iv, "../Daten/Results/Successional Dynamics/Basic Analysis/all_taxon_traits_box_plot.png")
 create_full_se_plot(mean_iv, "../Daten/Results/Successional Dynamics/Basic Analysis/all_taxon_traits_se_plot.png")
