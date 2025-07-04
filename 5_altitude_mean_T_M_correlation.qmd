@@ -1,5 +1,5 @@
 ---
-title: "evolution of correlation of altitude with moisture and temperature over time"
+title: "evolution of correlation of elevation with moisture and temperature over time"
 format: html
 editor_options: 
   chunk_output_type: console
@@ -16,22 +16,26 @@ library(tidyr)
 library(cocor)
 library(readr)
 library(multcompView)
+library(tibble)
+source("library.R")
 ```
 
 
 ```{r}
 mean_iv <- read_csv("../Daten/Intermediate/mean_indicator_values.csv")
+
+labels=data.frame(years = c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax"), labels = c("Before", "2004", "2005", "2006", "2007", "2013", "2023", "Intact"))
 ```
 
-# Compute the correlation of altitude with temperature indicator values for different years
+# Compute the correlation of elevation with temperature indicator values for different years
 
 The correlation is very high. Maybe we would need to improve and correlate with the measured temperature.
 
 ```{r}
-plot_id_2023_and_climax <- unique(append(mean_iv$global_id[mean_iv$year == 2023], mean_iv$global_id[mean_iv$year == "climax"]))
+plot_id_2023_climax_goedicke <- unique(append(append(mean_iv$global_id[mean_iv$year == 2023], mean_iv$global_id[mean_iv$year == "climax"]), mean_iv$global_id[mean_iv$year == "goedicke"]))
 
 # We only analyze data for which we have all years on the firepatch because there are better statistical tests if all the plots are common
-mean_iv <- mean_iv[mean_iv$global_id %in% plot_id_2023_and_climax,]
+mean_iv <- mean_iv[mean_iv$global_id %in% plot_id_2023_climax_goedicke,]
 
 compute_cor_p_val <- function(year1, year2, baseline_data, test_data, alternative, dependent) {
   if(dependent) {
@@ -60,11 +64,12 @@ compute_cor_p_val <- function(year1, year2, baseline_data, test_data, alternativ
 }
 
 compute_p_values <- function(baseline_data, test_data, alternative, dependent) {
-  years <- c("2004", "2005", "2006", "2007", "2013", "2023", "climax")
+  years <- c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax")
   results <- data.frame(years = character(), p_value = numeric())
   for(i in 1:(length(years) - 1)) {
     for(j in (i+1):length(years)) {
-      p_value <- compute_cor_p_val(years[i], years[j], baseline_data, test_data, alternative, years[j] != "climax" & dependent)
+      message(i, " ", j)
+      p_value <- compute_cor_p_val(years[i], years[j], baseline_data, test_data, alternative, (!years[i] %in% c("climax", "goedicke")) & (!years[j] %in% c("climax", "goedicke")) & dependent)
       results <- add_row(results, years = paste(years[j], "-", years[i], sep = ""), p_value = p_value)
     }
   }
@@ -73,51 +78,61 @@ compute_p_values <- function(baseline_data, test_data, alternative, dependent) {
   return(res)
 }
 
-temp_p_values <- compute_p_values( "altitude", "EIVEresT", "greater", T)
-moisture_p_values <- compute_p_values( "altitude", "EIVEresM", "less", T)
+temp_p_values <- compute_p_values( "elevation", "EIVEresT", "greater", T)
+moisture_p_values <- compute_p_values( "elevation", "EIVEresM", "less", T)
 
 let_temp <- multcompLetters(temp_p_values)$Letters
+names(let_temp)[order(labels$years)] <- names(let_temp)
+let_temp[order(labels$years)] <- let_temp
+let_temp <- improve_letters(let_temp)
+
 let_moist <- multcompLetters(moisture_p_values)$Letters
+names(let_moist)[order(labels$years)] <- names(let_moist)
+let_moist[order(labels$years)] <- let_moist
+let_moist <- improve_letters(let_moist)
 
 temp_correlation <- c(
-  cor(mean_iv[mean_iv$year == 2004,]$altitude, mean_iv[mean_iv$year == 2004,]$EIVEresT),
-  cor(mean_iv[mean_iv$year == 2005,]$altitude, mean_iv[mean_iv$year == 2005,]$EIVEresT),
-  cor(mean_iv[mean_iv$year == 2006,]$altitude, mean_iv[mean_iv$year == 2006,]$EIVEresT),
-  cor(mean_iv[mean_iv$year == 2007,]$altitude, mean_iv[mean_iv$year == 2007,]$EIVEresT),
-  cor(mean_iv[mean_iv$year == 2013,]$altitude, mean_iv[mean_iv$year == 2013,]$EIVEresT),
-  cor(mean_iv[mean_iv$year == 2023,]$altitude, mean_iv[mean_iv$year == 2023,]$EIVEresT),
-  cor(mean_iv[mean_iv$year == "climax",]$altitude, mean_iv[mean_iv$year == "climax",]$EIVEresT))
+  cor(mean_iv[mean_iv$year == "goedicke",]$elevation, mean_iv[mean_iv$year == "goedicke",]$EIVEresT),
+  cor(mean_iv[mean_iv$year == 2004,]$elevation, mean_iv[mean_iv$year == 2004,]$EIVEresT),
+  cor(mean_iv[mean_iv$year == 2005,]$elevation, mean_iv[mean_iv$year == 2005,]$EIVEresT),
+  cor(mean_iv[mean_iv$year == 2006,]$elevation, mean_iv[mean_iv$year == 2006,]$EIVEresT),
+  cor(mean_iv[mean_iv$year == 2007,]$elevation, mean_iv[mean_iv$year == 2007,]$EIVEresT),
+  cor(mean_iv[mean_iv$year == 2013,]$elevation, mean_iv[mean_iv$year == 2013,]$EIVEresT),
+  cor(mean_iv[mean_iv$year == 2023,]$elevation, mean_iv[mean_iv$year == 2023,]$EIVEresT),
+  cor(mean_iv[mean_iv$year == "climax",]$elevation, mean_iv[mean_iv$year == "climax",]$EIVEresT))
 
 moisture_correlation <- c(
-  cor(mean_iv[mean_iv$year == 2004,]$altitude, mean_iv[mean_iv$year == 2004,]$EIVEresM),
-  cor(mean_iv[mean_iv$year == 2005,]$altitude, mean_iv[mean_iv$year == 2005,]$EIVEresM),
-  cor(mean_iv[mean_iv$year == 2006,]$altitude, mean_iv[mean_iv$year == 2006,]$EIVEresM),
-  cor(mean_iv[mean_iv$year == 2007,]$altitude, mean_iv[mean_iv$year == 2007,]$EIVEresM),
-  cor(mean_iv[mean_iv$year == 2013,]$altitude, mean_iv[mean_iv$year == 2013,]$EIVEresM),
-  cor(mean_iv[mean_iv$year == 2023,]$altitude, mean_iv[mean_iv$year == 2023,]$EIVEresM),
-  cor(mean_iv[mean_iv$year == "climax",]$altitude, mean_iv[mean_iv$year == "climax",]$EIVEresM))
+  cor(mean_iv[mean_iv$year == "goedicke",]$elevation, mean_iv[mean_iv$year == "goedicke",]$EIVEresM),
+  cor(mean_iv[mean_iv$year == 2004,]$elevation, mean_iv[mean_iv$year == 2004,]$EIVEresM),
+  cor(mean_iv[mean_iv$year == 2005,]$elevation, mean_iv[mean_iv$year == 2005,]$EIVEresM),
+  cor(mean_iv[mean_iv$year == 2006,]$elevation, mean_iv[mean_iv$year == 2006,]$EIVEresM),
+  cor(mean_iv[mean_iv$year == 2007,]$elevation, mean_iv[mean_iv$year == 2007,]$EIVEresM),
+  cor(mean_iv[mean_iv$year == 2013,]$elevation, mean_iv[mean_iv$year == 2013,]$EIVEresM),
+  cor(mean_iv[mean_iv$year == 2023,]$elevation, mean_iv[mean_iv$year == 2023,]$EIVEresM),
+  cor(mean_iv[mean_iv$year == "climax",]$elevation, mean_iv[mean_iv$year == "climax",]$EIVEresM))
 
-year <- c("2004", "2005", "2006", "2007", "2013", "2023", "climax")
+year <- c("goedicke", "2004", "2005", "2006", "2007", "2013", "2023", "climax")
 
-correlation_t_m_elevation <- data.frame(year = year, temp_correlation = -temp_correlation, moisture_correlation = moisture_correlation)
+correlation_t_m_elevation <- data.frame(year = factor(year, levels = year), temp_correlation = -temp_correlation, moisture_correlation = moisture_correlation)
 
 correlation_t_m_elevation <- pivot_longer(correlation_t_m_elevation, cols = c(2,3))
 correlation_t_m_elevation$name <- as.factor(correlation_t_m_elevation$name)
 correlation_t_m_elevation$letters <- ""
-correlation_t_m_elevation[correlation_t_m_elevation$name == "temp_correlation",]$letters <- let_temp[order(names(let_temp))]
-correlation_t_m_elevation[correlation_t_m_elevation$name == "moisture_correlation",]$letters <- let_moist[order(names(let_moist))]
+correlation_t_m_elevation[correlation_t_m_elevation$name == "temp_correlation",]$letters <- let_temp
+correlation_t_m_elevation[correlation_t_m_elevation$name == "moisture_correlation",]$letters <- let_moist
 
 correlation_plot <- ggplot(data = correlation_t_m_elevation, aes(x = year, y = value, group = name, col = name)) + 
   geom_point() + 
   theme_classic() +
+  scale_x_discrete(labels=labels$labels, drop = FALSE) +
   xlab("Year") + 
-  ylab("Pearson r (mean iv, altitude)") +
+  ylab("Pearson r (mean iv, elevation)") +
   labs(col='Legend') +
-  scale_color_manual(values=c("blue", "red"), labels = c("cor(altitude, M)", "-cor(altitude, T)")) +
+  scale_color_manual(values=c("blue", "red"), labels = c("cor(elevation, M)", "-cor(elevation, T)")) +
   geom_text(aes(x = year, y = value, label = letters), col = "black", nudge_y = .015, size = 3)
 
 correlation_plot
 
-ggsave("../Daten/Results/Successional Dynamics/temperature_altitude_correlation.png")
+ggsave("../Daten/Results/Successional Dynamics/temperature_elevation_correlation.png")
 ```
 
